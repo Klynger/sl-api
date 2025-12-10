@@ -1,0 +1,26 @@
+services:
+  app:
+    container_name: slapi
+    build: .
+    env_file: .env
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["sh", "-c", "/sl-api/bin/migrate up && /sl-api/bin/api"]
+
+  db:
+    image: postgres:alpine
+    environment:
+      - POSTGRES_DB=shoppinglist_db
+      - POSTGRES_USER=shoppinglist_user
+      - POSTGRES_PASSWORD=my_pass
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shoppinglist_user -d shoppinglist_db"]
+      interval: 3s
+      timeout: 5s
+      retries: 5
+    restart: always
