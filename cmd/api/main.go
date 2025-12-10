@@ -2,22 +2,19 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 
+	"sl-api/api/router"
 	"sl-api/config"
 )
 
 func main() {
 	c := config.New()
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/livez", livez)
-
+	r := router.New()
 	s := &http.Server{
 		Addr:         fmt.Sprintf(":%d", c.Server.Port),
-		Handler:      mux,
+		Handler:      r,
 		ReadTimeout:  c.Server.TimeoutRead,
 		WriteTimeout: c.Server.TimeoutWrite,
 		IdleTimeout:  c.Server.TimeoutIdle,
@@ -27,8 +24,4 @@ func main() {
 	if err := s.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal("Server startup failed")
 	}
-}
-
-func livez(w http.ResponseWriter, req *http.Request) {
-	io.WriteString(w, "Hello, world!")
 }
