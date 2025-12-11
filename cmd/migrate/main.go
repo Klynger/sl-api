@@ -24,6 +24,14 @@ var (
 )
 
 func main() {
+	fmt.Printf("Running migrate with the following env vars:\n")
+	fmt.Printf("DB_HOST: %q\n", os.Getenv("DB_HOST"))
+	fmt.Printf("DB_PORT: %q\n", os.Getenv("DB_PORT"))
+	fmt.Printf("DB_USER: %q\n", os.Getenv("DB_USER"))
+	fmt.Printf("DB_PASS: %q\n", os.Getenv("DB_PASS"))
+	fmt.Printf("DB_NAME: %q\n", os.Getenv("DB_NAME"))
+	fmt.Printf("DB_DEBUG: %q\n", os.Getenv("DB_DEBUG"))
+
 	flags.Usage = usage
 	flags.Parse(os.Args[1:])
 
@@ -38,7 +46,9 @@ func main() {
 	command := args[0]
 
 	c := config.NewDB()
+
 	dbString := fmt.Sprintf(fmtDBString, c.Username, c.Password, c.Host, c.Port, c.DBName)
+	fmt.Printf("Connection string: %s\n", dbString)
 
 	db, err := goose.OpenDBWithDriver(dialect, dbString)
 	if err != nil {

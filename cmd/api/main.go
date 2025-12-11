@@ -9,6 +9,10 @@ import (
 	"sl-api/config"
 )
 
+// @title			Shopping list API
+// @version		1.0
+// @description	An API to interact with the shopping list application
+// @basePath		/v1
 func main() {
 	c := config.New()
 	r := router.New()
