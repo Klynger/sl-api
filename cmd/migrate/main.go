@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"regexp"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/joho/godotenv"
 	"github.com/pressly/goose/v3"
 
 	"sl-api/config"
@@ -23,15 +25,22 @@ var (
 	dir   = flags.String("dir", "migrations", "directory with migration files")
 )
 
-func main() {
-	fmt.Printf("Running migrate with the following env vars:\n")
-	fmt.Printf("DB_HOST: %q\n", os.Getenv("DB_HOST"))
-	fmt.Printf("DB_PORT: %q\n", os.Getenv("DB_PORT"))
-	fmt.Printf("DB_USER: %q\n", os.Getenv("DB_USER"))
-	fmt.Printf("DB_PASS: %q\n", os.Getenv("DB_PASS"))
-	fmt.Printf("DB_NAME: %q\n", os.Getenv("DB_NAME"))
-	fmt.Printf("DB_DEBUG: %q\n", os.Getenv("DB_DEBUG"))
+const projectDirName = "sl-api"
 
+func loadEnv() {
+	projectName := regexp.MustCompile(`^(.*` + projectDirName + `)`)
+	currentWorkDirectory, _ := os.Getwd()
+	rootPath := projectName.Find([]byte(currentWorkDirectory))
+
+	err := godotenv.Load(string(rootPath) + `/.env`)
+
+	if err != nil {
+		log.Fatalf("Error loading .env file")
+	}
+}
+
+func main() {
+	loadEnv()
 	flags.Usage = usage
 	flags.Parse(os.Args[1:])
 
@@ -48,8 +57,6 @@ func main() {
 	c := config.NewDB()
 
 	dbString := fmt.Sprintf(fmtDBString, c.Username, c.Password, c.Host, c.Port, c.DBName)
-	fmt.Printf("Connection string: %s\n", dbString)
-
 	db, err := goose.OpenDBWithDriver(dialect, dbString)
 	if err != nil {
 		log.Fatalf(err.Error())

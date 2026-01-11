@@ -3,6 +3,17 @@ services:
     container_name: slapi
     build: .
     env_file: .env
+    environment:
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_USER=${DB_USER}
+      - DB_PASS=${DB_PASS}
+      - DB_NAME=${DB_NAME}
+      - SERVER_PORT=${SERVER_PORT}
+      - SERVER_TIMEOUT_READ=${SERVER_TIMEOUT_READ}
+      - SERVER_TIMEOUT_WRITE=${SERVER_TIMEOUT_WRITE}
+      - SERVER_TIMEOUT_IDLE=${SERVER_TIMEOUT_IDLE}
+      - SERVER_DEBUG=${SERVER_DEBUG}
     ports:
       - "8080:8080"
     depends_on:
