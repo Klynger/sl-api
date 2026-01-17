@@ -31,7 +31,7 @@ type DTO struct {
 }
 
 type Form struct {
-	Name        string `json:"name"`
+	Name        string `json:"name" validate:"required,max=255"`
 	Description string `json:"description"`
 }
 

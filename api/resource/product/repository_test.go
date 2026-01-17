@@ -2,7 +2,6 @@ package product_test
 
 import (
 	"testing"
-	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
