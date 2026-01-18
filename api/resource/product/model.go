@@ -9,7 +9,7 @@ import (
 
 type Product struct {
 	ID          uuid.UUID `gorm:"primarykey"`
-	Name        string    `gorm:"product_name"`
+	Name        string    `gorm:"column:product_name"`
 	Description string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
