@@ -7,6 +7,7 @@ import (
 
 	"sl-api/api/resource/health"
 	"sl-api/api/resource/product"
+	"sl-api/api/resource/user"
 )
 
 func New(db *gorm.DB, v *validator.Validate) *chi.Mux {
@@ -16,10 +17,15 @@ func New(db *gorm.DB, v *validator.Validate) *chi.Mux {
 
 	r.Route("/v1", func(r chi.Router) {
 		productAPI := product.New(db, v)
+		userAPI := user.New(db, v)
 
 		r.Get("/products", productAPI.List)
 		r.Get("/products/{id}", productAPI.Read)
 		r.Post("/products", productAPI.Create)
+
+		r.Post("/users", userAPI.Register)
+		r.Get("/users/{id}", userAPI.Read)
+		r.Get("/users/by-user-name/{username}", userAPI.ReadByUsername)
 	})
 
 	return r
