@@ -32,9 +32,9 @@ func (r *Repository) Read(id uuid.UUID) (*User, error) {
 	return user, nil
 }
 
-func (r *Repository) ReadByUsername(username string) (*User, error) {
-	user := &User{}
-	if err := r.db.Where("username = ?", username).First(&user).Error; err != nil {
+func (r *Repository) ReadByUsername(username string) (*UserCredentials, error) {
+	user := &UserCredentials{}
+	if err := r.db.Select("id", "username", "password").Where("username = ?", username).First(&user).Error; err != nil {
 		return nil, err
 	}
 

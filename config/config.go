@@ -1,15 +1,15 @@
 package config
 
 import (
+	"github.com/joeshaw/envdecode"
 	"log"
 	"time"
-
-	"github.com/joeshaw/envdecode"
 )
 
 type Conf struct {
-	Server ConfServer
-	DB     ConfDB
+	Server        ConfServer
+	DB            ConfDB
+	StoreSessions StoreSessions
 }
 
 type ConfServer struct {
@@ -18,6 +18,10 @@ type ConfServer struct {
 	TimeoutWrite time.Duration `env:"SERVER_TIMEOUT_WRITE,required"`
 	TimeoutIdle  time.Duration `env:"SERVER_TIMEOUT_IDLE,required"`
 	Debug        bool          `env:"SERVER_DEBUG,required"`
+}
+
+type StoreSessions struct {
+	AuthSecret string `env:"AUTH_SESSION_STORE_SECRET,required"`
 }
 
 type ConfDB struct {

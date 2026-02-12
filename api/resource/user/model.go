@@ -9,13 +9,32 @@ import (
 
 type User struct {
 	ID        uuid.UUID `gorm:"primarykey"`
-    Name      string    `gorm:"column:user_name"`
+	Name      string    `gorm:"column:user_name"`
 	LastName  string
 	Username  string
 	Password  string
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	DeletedAt gorm.DeletedAt
+}
+
+type LoginForm struct {
+	Username string `json:"username" validate:"required,max=50"`
+	Password string `json:"password" validate:"required"`
+}
+
+type UserCredentials struct {
+	ID       uuid.UUID
+	Username string
+	Password string
+}
+
+func (UserCredentials) TableName() string {
+	return "users"
+}
+
+func (u *UserCredentials) ValidateCredentials(form *LoginForm) bool {
+	return u.Username == form.Username && u.Password == form.Password
 }
 
 type DTO struct {

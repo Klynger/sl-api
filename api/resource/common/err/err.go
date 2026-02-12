@@ -14,6 +14,10 @@ var (
 	RespJSONDecodeFailure = []byte(`{"error": "json decode failure"}`)
 
 	RespInvalidURLParamID = []byte(`{"error": "invalid url param-id"}`)
+
+	RespSessionAccessFailure = []byte(`{"error": "session access failure"}`)
+
+	RespGenericFailure = []byte(`{"error": "something went wrong"}`)
 )
 
 func ServerError(w http.ResponseWriter, reps []byte) {

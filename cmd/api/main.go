@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/gorilla/sessions"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
@@ -38,7 +39,9 @@ func main() {
 		log.Fatal("DB connection start failure")
 	}
 
-	r := router.New(db, v)
+	authStore := sessions.NewCookieStore([]byte(c.StoreSessions.AuthSecret))
+
+	r := router.New(db, authStore, v)
 	s := &http.Server{
 		Addr:         fmt.Sprintf(":%d", c.Server.Port),
 		Handler:      r,

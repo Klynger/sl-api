@@ -2,9 +2,11 @@ package user
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
+	"github.com/gorilla/sessions"
 	"gorm.io/gorm"
 	"net/http"
 	e "sl-api/api/resource/common/err"
@@ -12,14 +14,16 @@ import (
 )
 
 type API struct {
-	validator  *validator.Validate
-	repository *Repository
+	validator        *validator.Validate
+	repository       *Repository
+	authSessionStore *sessions.CookieStore
 }
 
-func New(db *gorm.DB, v *validator.Validate) *API {
+func New(db *gorm.DB, authSessionStore *sessions.CookieStore, v *validator.Validate) *API {
 	return &API{
-		repository: NewRepository(db),
-		validator:  v,
+		repository:       NewRepository(db),
+		validator:        v,
+		authSessionStore: authSessionStore,
 	}
 }
 
@@ -88,20 +92,79 @@ func (a *API) Read(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (a *API) ReadByUsername(w http.ResponseWriter, r *http.Request) {
-	username := chi.URLParam(r, "username")
+func (a *API) Login(w http.ResponseWriter, r *http.Request) {
+	form := &LoginForm{}
+	if err := json.NewDecoder(r.Body).Decode(form); err != nil {
+		e.ServerError(w, e.RespJSONDecodeFailure)
+		return
+	}
 
-	user, err := a.repository.ReadByUsername(username)
+	if err := a.validator.Struct(form); err != nil {
+		respBody, err := json.Marshal(validatorUtil.ToErrResponse(err))
+		if err != nil {
+			e.ServerError(w, e.RespJSONEncodeFailure)
+			return
+		}
+
+		e.ValidationErrors(w, respBody)
+		return
+	}
+
+	userCredentials, err := a.repository.ReadByUsername(form.Username)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
+			// TODO: Do something to avoid timing attacks
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
+
+		e.ServerError(w, e.RespDBDataAccessFailure)
+		return
 	}
 
-	dto := user.ToDto()
-	if err := json.NewEncoder(w).Encode(dto); err != nil {
+	validationResult := userCredentials.ValidateCredentials(form)
+
+	if !validationResult {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	session, err := a.authSessionStore.Get(r, "auth-session")
+	if err != nil {
+		e.ServerError(w, e.RespSessionAccessFailure)
+		return
+	}
+
+	session.Values["user_id"] = userCredentials.ID.String()
+	session.Values["username"] = userCredentials.Username
+
+	session.Options = &sessions.Options{
+		MaxAge:   3600,  // 1 hour
+		HttpOnly: false, // SECURITY FLAW: Allows JavaScript access
+		Secure:   false, // SECURITY FLAW: Allows HTTP access (not just HTTPS)
+	}
+
+	err = session.Save(r, w)
+	if err != nil {
+		fmt.Println("Session save error: ", err)
+		e.ServerError(w, e.RespGenericFailure)
+		return
+	}
+
+	resp := &LoginResponse{
+		Message:  "Login successful",
+		Username: userCredentials.Username,
+	}
+
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		e.ServerError(w, e.RespJSONEncodeFailure)
 		return
 	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
+type LoginResponse struct {
+	Message  string    `json:"message"`
+	Username string    `json:"username"`
 }
