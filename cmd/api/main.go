@@ -41,7 +41,7 @@ func main() {
 
 	authStore := sessions.NewCookieStore([]byte(c.StoreSessions.AuthSecret))
 
-	r := router.New(db, authStore, v)
+	r := router.New(db, authStore, c.StoreSessions.AuthMaxAgeSecs, v)
 	s := &http.Server{
 		Addr:         fmt.Sprintf(":%d", c.Server.Port),
 		Handler:      r,

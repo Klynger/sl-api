@@ -17,13 +17,15 @@ type API struct {
 	validator        *validator.Validate
 	repository       *Repository
 	authSessionStore *sessions.CookieStore
+	authMaxAge       int
 }
 
-func New(db *gorm.DB, authSessionStore *sessions.CookieStore, v *validator.Validate) *API {
+func New(db *gorm.DB, authSessionStore *sessions.CookieStore, authMaxAge int, v *validator.Validate) *API {
 	return &API{
 		repository:       NewRepository(db),
 		validator:        v,
 		authSessionStore: authSessionStore,
+		authMaxAge:       authMaxAge,
 	}
 }
 
@@ -139,7 +141,8 @@ func (a *API) Login(w http.ResponseWriter, r *http.Request) {
 	session.Values["username"] = userCredentials.Username
 
 	session.Options = &sessions.Options{
-		MaxAge:   3600,  // 1 hour
+		Path:     "/",
+		MaxAge:   a.authMaxAge,
 		HttpOnly: false, // SECURITY FLAW: Allows JavaScript access
 		Secure:   false, // SECURITY FLAW: Allows HTTP access (not just HTTPS)
 	}
@@ -164,7 +167,38 @@ func (a *API) Login(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+func (a *API) Logout(w http.ResponseWriter, r *http.Request) {
+	session, err := a.authSessionStore.Get(r, "auth-sesison")
+	if err != nil {
+		e.ServerError(w, e.RespSessionAccessFailure)
+		return
+	}
+
+	session.Options.MaxAge = -1
+
+	err = session.Save(r, w)
+	if err != nil {
+		e.ServerError(w, e.RespGenericFailure)
+		return
+	}
+
+	resp := &LogoutResponse{
+		Message: "Logout successful",
+	}
+
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		e.ServerError(w, e.RespJSONDecodeFailure)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
 type LoginResponse struct {
-	Message  string    `json:"message"`
-	Username string    `json:"username"`
+	Message  string `json:"message"`
+	Username string `json:"username"`
+}
+
+type LogoutResponse struct {
+	Message string `json:"message"`
 }

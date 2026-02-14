@@ -22,6 +22,7 @@ type ConfServer struct {
 
 type StoreSessions struct {
 	AuthSecret string `env:"AUTH_SESSION_STORE_SECRET,required"`
+	AuthMaxAgeSecs int    `env:"AUTH_SESSION_MAX_AGE_SECONDS,required"`
 }
 
 type ConfDB struct {
