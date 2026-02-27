@@ -22,32 +22,32 @@ const fmtDBString = "host=%s user=%s password=%s dbname=%s port=%d sslmode=disab
 // @description	An API to interact with the shopping list application
 // @basePath		/v1
 func main() {
-	c := config.New()
-	v := validatorUtil.New()
+	conf := config.New()
+	validator := validatorUtil.New()
 
 	var logLevel gormlogger.LogLevel
-	if c.DB.Debug {
+	if conf.DB.Debug {
 		logLevel = gormlogger.Info
 	} else {
 		logLevel = gormlogger.Error
 	}
 
-	dbString := fmt.Sprintf(fmtDBString, c.DB.Host, c.DB.Username, c.DB.Password, c.DB.DBName, c.DB.Port)
+	dbString := fmt.Sprintf(fmtDBString, conf.DB.Host, conf.DB.Username, conf.DB.Password, conf.DB.DBName, conf.DB.Port)
 	db, err := gorm.Open(postgres.Open(dbString), &gorm.Config{Logger: gormlogger.Default.LogMode(logLevel)})
 
 	if err != nil {
 		log.Fatal("DB connection start failure")
 	}
 
-	authStore := sessions.NewCookieStore([]byte(c.StoreSessions.AuthSecret))
+	authStore := sessions.NewCookieStore([]byte(conf.StoreSessions.AuthSecret))
 
-	r := router.New(db, authStore, c.StoreSessions.AuthMaxAgeSecs, v)
+	r := router.New(db, validator, authStore, conf.Server.Debug, conf.StoreSessions.AuthMaxAgeSecs)
 	s := &http.Server{
-		Addr:         fmt.Sprintf(":%d", c.Server.Port),
+		Addr:         fmt.Sprintf(":%d", conf.Server.Port),
 		Handler:      r,
-		ReadTimeout:  c.Server.TimeoutRead,
-		WriteTimeout: c.Server.TimeoutWrite,
-		IdleTimeout:  c.Server.TimeoutIdle,
+		ReadTimeout:  conf.Server.TimeoutRead,
+		WriteTimeout: conf.Server.TimeoutWrite,
+		IdleTimeout:  conf.Server.TimeoutIdle,
 	}
 
 	log.Println("Starting server ", s.Addr)

@@ -12,14 +12,14 @@ import (
 	"sl-api/api/resource/user"
 )
 
-func New(db *gorm.DB, authSessionStore *sessions.CookieStore, authMaxAge int, v *validator.Validate) *chi.Mux {
+func New(db *gorm.DB, validator *validator.Validate, authSessionStore *sessions.CookieStore, isDebugging bool, authMaxAge int) *chi.Mux {
 	r := chi.NewRouter()
 
 	r.Get("/livez", health.Read)
 
 	r.Route("/v1", func(r chi.Router) {
-		productAPI := product.New(db, v)
-		userAPI := user.New(db, authSessionStore, authMaxAge, v)
+		productAPI := product.New(db, validator)
+		userAPI := user.New(db, authSessionStore, authMaxAge, isDebugging, validator)
 
 		// Public routes
 		r.Post("/users", userAPI.Register)

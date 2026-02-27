@@ -18,14 +18,16 @@ type API struct {
 	repository       *Repository
 	authSessionStore *sessions.CookieStore
 	authMaxAge       int
+	isDebugging      bool
 }
 
-func New(db *gorm.DB, authSessionStore *sessions.CookieStore, authMaxAge int, v *validator.Validate) *API {
+func New(db *gorm.DB, authSessionStore *sessions.CookieStore, authMaxAge int, isDebugging bool, validator *validator.Validate) *API {
 	return &API{
 		repository:       NewRepository(db),
-		validator:        v,
+		validator:        validator,
 		authSessionStore: authSessionStore,
 		authMaxAge:       authMaxAge,
+		isDebugging:      isDebugging,
 	}
 }
 
@@ -143,8 +145,8 @@ func (a *API) Login(w http.ResponseWriter, r *http.Request) {
 	session.Options = &sessions.Options{
 		Path:     "/",
 		MaxAge:   a.authMaxAge,
-		HttpOnly: false, // SECURITY FLAW: Allows JavaScript access
-		Secure:   false, // SECURITY FLAW: Allows HTTP access (not just HTTPS)
+		HttpOnly: !a.isDebugging, // Allow JS access to cookies in debug mode for testing purposes
+		Secure:   !a.isDebugging, // Don't require secure cookies in debug mode for testing purposes
 	}
 
 	err = session.Save(r, w)
@@ -168,7 +170,7 @@ func (a *API) Login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) Logout(w http.ResponseWriter, r *http.Request) {
-	session, err := a.authSessionStore.Get(r, "auth-sesison")
+	session, err := a.authSessionStore.Get(r, "auth-session")
 	if err != nil {
 		e.ServerError(w, e.RespSessionAccessFailure)
 		return
@@ -187,7 +189,7 @@ func (a *API) Logout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		e.ServerError(w, e.RespJSONDecodeFailure)
+		e.ServerError(w, e.RespJSONEncodeFailure)
 		return
 	}
 
