@@ -3,6 +3,7 @@ package user
 import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	groupMember "sl-api/api/resource/groupMember"
 )
 
 type Repository struct {
@@ -41,8 +42,12 @@ func (r *Repository) ReadByUsername(username string) (*UserCredentials, error) {
 	return user, nil
 }
 
-func (r *Repository) Delete(id uuid.UUID) (int64, error) {
-	result := r.db.Where("id = ?", id).Delete(&User{})
+func (r *Repository) DeleteWithCascade(id uuid.UUID) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("user_id = ?", id).Delete(&groupMember.GroupMember{}).Error; err != nil {
+			return err
+		}
 
-	return result.RowsAffected, result.Error
+		return tx.Delete(&User{}, id).Error
+	})
 }
