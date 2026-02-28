@@ -1,8 +1,12 @@
 package middleware
 
 import (
-	"github.com/gorilla/sessions"
+	"context"
+	"fmt"
 	"net/http"
+
+	"github.com/google/uuid"
+	"github.com/gorilla/sessions"
 
 	e "sl-api/api/resource/common/err"
 )
@@ -13,6 +17,7 @@ func RequireAuth(authSessionStore *sessions.CookieStore, maxAge int) func(http.H
 			session, err := authSessionStore.Get(r, "auth-session")
 			if err != nil {
 				e.ServerError(w, e.RespSessionAccessFailure)
+				return
 			}
 
 			userID, ok := session.Values["user_id"].(string)
@@ -20,6 +25,9 @@ func RequireAuth(authSessionStore *sessions.CookieStore, maxAge int) func(http.H
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
+
+			ctx := context.WithValue(r.Context(), "user_id", userID)
+			r = r.WithContext(ctx)
 
 			// Reset session expiration on each request
 			session.Options.MaxAge = maxAge
@@ -33,4 +41,20 @@ func RequireAuth(authSessionStore *sessions.CookieStore, maxAge int) func(http.H
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func GetAuthedUserIDFromCtx(ctx context.Context) (uuid.UUID, error) {
+	userIDStr, ok := ctx.Value("user_id").(string)
+
+	if !ok {
+		return uuid.Nil, fmt.Errorf("UNAUTHORIZED")
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("UNAUTHORIZED")
+	}
+
+	return userID, nil
 }

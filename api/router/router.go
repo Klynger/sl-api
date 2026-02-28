@@ -7,6 +7,7 @@ import (
 	"gorm.io/gorm"
 
 	"sl-api/api/middleware"
+	"sl-api/api/resource/group"
 	"sl-api/api/resource/health"
 	"sl-api/api/resource/product"
 	"sl-api/api/resource/user"
@@ -20,6 +21,7 @@ func New(db *gorm.DB, validator *validator.Validate, authSessionStore *sessions.
 	r.Route("/v1", func(r chi.Router) {
 		productAPI := product.New(db, validator)
 		userAPI := user.New(db, authSessionStore, authMaxAge, isDebugging, validator)
+		groupAPI := group.New(db, validator)
 
 		// Public routes
 		r.Post("/users", userAPI.Register)
@@ -34,6 +36,8 @@ func New(db *gorm.DB, validator *validator.Validate, authSessionStore *sessions.
 
 			authedRouter.Get("/users/{id}", userAPI.Read)
 			authedRouter.Post("/users/logout", userAPI.Logout)
+
+			authedRouter.Post("/groups", groupAPI.Create)
 		})
 	})
 

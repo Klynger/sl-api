@@ -18,6 +18,8 @@ var (
 	RespSessionAccessFailure = []byte(`{"error": "session access failure"}`)
 
 	RespGenericFailure = []byte(`{"error": "something went wrong"}`)
+
+	RespUnauthorized = []byte(`{"error": "unauthorized"}`)
 )
 
 func ServerError(w http.ResponseWriter, reps []byte) {

@@ -36,7 +36,6 @@ type Form struct {
 }
 
 func (f *Form) ToModel() *Product {
-
 	return &Product{
 		Name:        f.Name,
 		Description: f.Description,

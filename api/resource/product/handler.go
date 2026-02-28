@@ -4,14 +4,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	e "sl-api/api/resource/common/err"
-	validatorUtil "sl-api/util/validator"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
 	uuid "github.com/google/uuid"
-
 	"gorm.io/gorm"
+
+	productModel "sl-api/api/model/product"
+	e "sl-api/api/resource/common/err"
+	validatorUtil "sl-api/util/validator"
 )
 
 type API struct {
@@ -33,7 +34,7 @@ func New(db *gorm.DB, v *validator.Validate) *API {
 //	@tags			products
 //	@accept			json
 //	@product		json
-//	@success		200	{object}	[]DTO
+//	@success		200	{object}	[]productModel.DTO
 //	@failure		500	{object}	err.Error
 //	@router			/products [get]
 func (a *API) List(w http.ResponseWriter, r *http.Request) {
@@ -61,14 +62,14 @@ func (a *API) List(w http.ResponseWriter, r *http.Request) {
 //	@tags			products
 //	@accept			json
 //	@product		json
-//	@param			body	body	Form	true	"Product form"
+//	@param			body	body	productModel.Form	true	"Product form"
 //	@success		201
 //	@failure		400	{object}	err.Error
 //	@failure		422	{object}	err.Errors
 //	@failure		500	{object}	err.Error
 //	@router			/products [post]
 func (a *API) Create(w http.ResponseWriter, r *http.Request) {
-	form := &Form{}
+	form := &productModel.Form{}
 	if err := json.NewDecoder(r.Body).Decode(form); err != nil {
 		e.ServerError(w, e.RespJSONDecodeFailure)
 		return
@@ -105,7 +106,7 @@ func (a *API) Create(w http.ResponseWriter, r *http.Request) {
 //	@accept			json
 //	@product		json
 //	@param			id	path		string	true	"Product ID"
-//	@success		200	{object}	DTO
+//	@success		200	{object}	productModel.DTO
 //	@failure		400	{object}	err.Error
 //	@failure		404
 //	@failure		500	{object}	err.Error
@@ -134,19 +135,19 @@ func (a *API) Read(w http.ResponseWriter, r *http.Request) {
 
 // Update godoc
 //
-//	@summary        Update book
-//	@description    Update book
-//	@tags           books
+//	@summary        Update product
+//	@description    Update product
+//	@tags           products
 //	@accept         json
 //	@produce        json
-//	@param          id      path    string  true    "Book ID"
-//	@param          body    body    Form    true    "Book form"
+//	@param          id      path    string  true    "Product ID"
+//	@param          body    body    productModel.Form    true    "Product form"
 //	@success        200
 //	@failure        400 {object}    err.Error
 //	@failure        404
 //	@failure        422 {object}    err.Errors
 //	@failure        500 {object}    err.Error
-//	@router         /books/{id} [put]
+//	@router         /products/{id} [put]
 func (a *API) Update(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -154,7 +155,7 @@ func (a *API) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	form := &Form{}
+	form := &productModel.Form{}
 	if err := json.NewDecoder(r.Body).Decode(form); err != nil {
 		e.ServerError(w, e.RespJSONDecodeFailure)
 		return
@@ -188,17 +189,17 @@ func (a *API) Update(w http.ResponseWriter, r *http.Request) {
 
 // Delete godoc
 //
-//	@summary        Delete book
-//	@description    Delete book
-//	@tags           books
+//	@summary        Delete product
+//	@description    Delete product
+//	@tags           products
 //	@accept         json
 //	@produce        json
-//	@param          id  path    string  true    "Book ID"
+//	@param          id  path    string  true    "Product ID"
 //	@success        200
 //	@failure        400 {object}    err.Error
 //	@failure        404
 //	@failure        500 {object}    err.Error
-//	@router         /books/{id} [delete]
+//	@router         /products/{id} [delete]
 func (a *API) Delete(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {

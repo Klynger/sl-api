@@ -9,7 +9,7 @@ import (
 
 type Group struct {
 	ID        uuid.UUID `gorm:"primarykey"`
-	Name      string
+	Name      string    `gorm:"varchar(255);not null"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	DeletedAt gorm.DeletedAt
@@ -28,7 +28,7 @@ type DTO struct {
 }
 
 type Form struct {
-	Name string `json:"name" validate:"required,max=255"`
+	Name string `json:"name" validate:"required,min=1,max=255"`
 }
 
 func (f *Form) ToModel() *Group {

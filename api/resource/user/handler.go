@@ -3,12 +3,15 @@ package user
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 	"github.com/gorilla/sessions"
 	"gorm.io/gorm"
-	"net/http"
+
+	userModel "sl-api/api/model/user"
 	e "sl-api/api/resource/common/err"
 	validatorUtil "sl-api/util/validator"
 )
@@ -38,14 +41,14 @@ func New(db *gorm.DB, authSessionStore *sessions.CookieStore, authMaxAge int, is
 //	@tags			users
 //	@accept			json
 //	@product		json
-//	@param			body	body	Form	true	"User form"
+//	@param			body	body	userModel.Form	true	"User form"
 //	@success		201
 //	@failure		400	{object}	err.Error
 //	@failure		422	{object}	err.Errors
 //	@failure		500	{object}	err.Error
 //	@router			/users [post]
 func (a *API) Register(w http.ResponseWriter, r *http.Request) {
-	form := &Form{}
+	form := &userModel.Form{}
 	if err := json.NewDecoder(r.Body).Decode(form); err != nil {
 		e.ServerError(w, e.RespJSONDecodeFailure)
 		return
@@ -97,7 +100,7 @@ func (a *API) Read(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) Login(w http.ResponseWriter, r *http.Request) {
-	form := &LoginForm{}
+	form := &userModel.LoginForm{}
 	if err := json.NewDecoder(r.Body).Decode(form); err != nil {
 		e.ServerError(w, e.RespJSONDecodeFailure)
 		return

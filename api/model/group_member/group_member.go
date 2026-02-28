@@ -1,25 +1,72 @@
-package groupMember
+package group_member
 
 import (
+	"fmt"
 	"slices"
+	"strings"
 	"time"
 
+	"database/sql/driver"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
 type Role string
+type Roles []Role
 
 const (
 	RoleOwner  Role = "owner"
 	RoleMember Role = "member"
 )
 
+func (r Roles) Value() (driver.Value, error) {
+	if len(r) == 0 {
+		return "{}", nil
+	}
+
+	strs := make([]string, len(r))
+	for i, role := range r {
+		strs[i] = string(role)
+	}
+
+	return "{" + strings.Join(strs, ",") + "}", nil
+}
+
+func (r *Roles) Scan(value interface{}) error {
+	if value == nil {
+		*r = []Role{}
+		return nil
+	}
+
+	str, ok := value.(string)
+	if !ok {
+		bytes, ok := value.([]byte)
+		if !ok {
+			return fmt.Errorf("failed to scan Roles: %v", value)
+		}
+		str = string(bytes)
+	}
+
+	str = strings.Trim(str, "{}")
+	if str == "" {
+		*r = []Role{}
+		return nil
+	}
+
+	parts := strings.Split(str, ",")
+	*r = make([]Role, len(parts))
+	for i, part := range parts {
+		(*r)[i] = Role(strings.Trim(part, `"`))
+	}
+
+	return nil
+}
+
 type GroupMember struct {
 	ID        uuid.UUID `gorm:"primarykey"`
 	UserID    uuid.UUID `gorm:"column:user_id"`
 	GroupID   uuid.UUID `gorm:"column:group_id"`
-	Roles     []Role    `gorm:"type:text[]"`
+	Roles     Roles     `gorm:"type:text[]"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	DeletedAt gorm.DeletedAt
@@ -27,6 +74,36 @@ type GroupMember struct {
 
 func (GroupMember) TableName() string {
 	return "group_members"
+}
+
+type GroupMemberDetails struct {
+	ID           string
+	UserID       string
+	UserName     string
+	UserLastName string
+	GroupID      string
+	GroupName    string
+	Roles        []string
+}
+
+func (d *GroupMemberDetails) ToDto() *DTO {
+	return &DTO{
+		ID:           d.ID,
+		UserID:       d.UserID,
+		UserName:     d.UserName,
+		UserLastName: d.UserLastName,
+		GroupID:      d.GroupID,
+		GroupName:    d.GroupName,
+		Roles:        d.Roles,
+	}
+}
+
+func (d *GroupMemberDetails) HasRole(role Role) bool {
+	return slices.Contains(d.Roles, string(role))
+}
+
+func (d *GroupMemberDetails) IsOwner() bool {
+	return d.HasRole(RoleOwner)
 }
 
 type DTO struct {
@@ -43,20 +120,6 @@ type Form struct {
 	UserID  string   `json:"userId" validate:"required,uuid"`
 	GroupID string   `json:"groupId" validate:"required,uuid"`
 	Roles   []string `json:"roles" validate:"required,dive,oneof=owner member"`
-}
-
-func (m *GroupMember) ToDto() *DTO {
-	roles := make([]string, len(m.Roles))
-	for i, role := range m.Roles {
-		roles[i] = string(role)
-	}
-
-	return &DTO{
-		ID:      m.ID.String(),
-		UserID:  m.UserID.String(),
-		GroupID: m.GroupID.String(),
-		Roles:   roles,
-	}
 }
 
 func (m *GroupMember) HasRole(role Role) bool {
@@ -93,15 +156,4 @@ func (f *Form) ToModel() (*GroupMember, error) {
 		GroupID: groupID,
 		Roles:   memberRoles,
 	}, nil
-}
-
-type GroupMembers []*GroupMember
-
-func (ms GroupMembers) ToDto() []*DTO {
-	dtos := make([]*DTO, len(ms))
-	for i, v := range ms {
-		dtos[i] = v.ToDto()
-	}
-
-	return dtos
 }

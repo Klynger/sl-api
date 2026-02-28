@@ -3,7 +3,9 @@ package user
 import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-	groupMember "sl-api/api/resource/groupMember"
+
+	groupMemberModel "sl-api/api/model/group_member"
+	userModel "sl-api/api/model/user"
 )
 
 type Repository struct {
@@ -16,7 +18,7 @@ func NewRepository(db *gorm.DB) *Repository {
 	}
 }
 
-func (r *Repository) Create(user *User) (*User, error) {
+func (r *Repository) Create(user *userModel.User) (*userModel.User, error) {
 	if err := r.db.Create(user).Error; err != nil {
 		return nil, err
 	}
@@ -24,8 +26,8 @@ func (r *Repository) Create(user *User) (*User, error) {
 	return user, nil
 }
 
-func (r *Repository) Read(id uuid.UUID) (*User, error) {
-	user := &User{}
+func (r *Repository) Read(id uuid.UUID) (*userModel.User, error) {
+	user := &userModel.User{}
 	if err := r.db.Where("id = ?", id).First(&user).Error; err != nil {
 		return nil, err
 	}
@@ -33,8 +35,8 @@ func (r *Repository) Read(id uuid.UUID) (*User, error) {
 	return user, nil
 }
 
-func (r *Repository) ReadByUsername(username string) (*UserCredentials, error) {
-	user := &UserCredentials{}
+func (r *Repository) ReadByUsername(username string) (*userModel.UserCredentials, error) {
+	user := &userModel.UserCredentials{}
 	if err := r.db.Select("id", "username", "password").Where("username = ?", username).First(&user).Error; err != nil {
 		return nil, err
 	}
@@ -44,10 +46,10 @@ func (r *Repository) ReadByUsername(username string) (*UserCredentials, error) {
 
 func (r *Repository) DeleteWithCascade(id uuid.UUID) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("user_id = ?", id).Delete(&groupMember.GroupMember{}).Error; err != nil {
+		if err := tx.Where("user_id = ?", id).Delete(&groupMemberModel.GroupMember{}).Error; err != nil {
 			return err
 		}
 
-		return tx.Delete(&User{}, id).Error
+		return tx.Delete(&userModel.User{}, id).Error
 	})
 }
