@@ -18,6 +18,12 @@ type User struct {
 	DeletedAt gorm.DeletedAt
 }
 
+type PublicUser struct {
+	ID       uuid.UUID
+	Name     string
+	LastName string
+}
+
 type LoginForm struct {
 	Username string `json:"username" validate:"required,max=50"`
 	Password string `json:"password" validate:"required"`

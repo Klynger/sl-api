@@ -14,10 +14,11 @@ import (
 )
 
 type InviteService struct {
-	db            *gorm.DB
-	newGroupRepo  func(db *gorm.DB) GroupRepository
-	newInviteRepo func(db *gorm.DB) InviteRepository
-	newUserRepo   func(db *gorm.DB) UserRepository
+	db                 *gorm.DB
+	newGroupMemberRepo func(db *gorm.DB) GroupMemberRepository
+	newGroupRepo       func(db *gorm.DB) GroupRepository
+	newInviteRepo      func(db *gorm.DB) InviteRepository
+	newUserRepo        func(db *gorm.DB) UserRepository
 }
 
 type InviteInput struct {

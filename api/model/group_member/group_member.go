@@ -72,6 +72,13 @@ type GroupMember struct {
 	DeletedAt gorm.DeletedAt
 }
 
+type PublicGroupMember struct {
+	ID      uuid.UUID
+	UserID  uuid.UUID
+	GroupID uuid.UUID
+	Roles   Roles
+}
+
 func (GroupMember) TableName() string {
 	return "group_members"
 }

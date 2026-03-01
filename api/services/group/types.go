@@ -16,6 +16,7 @@ type GroupRepository interface {
 
 type GroupMemberRepository interface {
 	Create(member *groupMemberModel.GroupMember) (*groupMemberModel.GroupMember, error)
+	FindByUserAndGroup(userID, groupID uuid.UUID) (*groupMemberModel.GroupMember, error)
 }
 
 type InviteRepository interface {
