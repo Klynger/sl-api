@@ -32,7 +32,7 @@ func (r Roles) Value() (driver.Value, error) {
 	return "{" + strings.Join(strs, ",") + "}", nil
 }
 
-func (r *Roles) Scan(value interface{}) error {
+func (r *Roles) Scan(value any) error {
 	if value == nil {
 		*r = []Role{}
 		return nil

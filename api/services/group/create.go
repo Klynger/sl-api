@@ -1,4 +1,4 @@
-package create_group
+package group_service
 
 import (
 	"context"
@@ -10,48 +10,41 @@ import (
 	"sl-api/api/middleware"
 	groupModel "sl-api/api/model/group"
 	groupMemberModel "sl-api/api/model/group_member"
+	"sl-api/api/services/util"
 )
 
-type GroupRepository interface {
-	Create(group *groupModel.Group) (*groupModel.Group, error)
-}
-
-type GroupMemberRepository interface {
-	Create(member *groupMemberModel.GroupMember) (*groupMemberModel.GroupMember, error)
-}
-
-type Service struct {
+type CreateService struct {
 	db            *gorm.DB
 	newGroupRepo  func(db *gorm.DB) GroupRepository
 	newMemberRepo func(db *gorm.DB) GroupMemberRepository
 }
 
-func NewService(db *gorm.DB, newGroupRepo func(db *gorm.DB) GroupRepository, newMemberRepo func(db *gorm.DB) GroupMemberRepository) *Service {
-	return &Service{
+func NewCreateService(db *gorm.DB, newGroupRepo func(db *gorm.DB) GroupRepository, newMemberRepo func(db *gorm.DB) GroupMemberRepository) *CreateService {
+	return &CreateService{
 		db:            db,
 		newGroupRepo:  newGroupRepo,
 		newMemberRepo: newMemberRepo,
 	}
 }
 
-type ExecuteInput struct {
+type CreateInput struct {
 	Name string
 }
 
-type ExecuteOutput struct {
+type CreateOutput struct {
 	GroupID uuid.UUID
 	UserID  uuid.UUID
 }
 
-func (s *Service) Execute(ctx context.Context, input ExecuteInput) (*ExecuteOutput, error) {
+func (s *CreateService) Execute(ctx context.Context, input CreateInput) (*CreateOutput, error) {
 	userID, err := middleware.GetAuthedUserIDFromCtx(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	var output *ExecuteOutput
+	var output *CreateOutput
 
-	err = s.WithTransaction(ctx, func(tx *gorm.DB) error {
+	err = util.WithTransaction(s.db, func(tx *gorm.DB) error {
 		groupRepo := s.newGroupRepo(tx)
 		memberRepo := s.newMemberRepo(tx)
 
@@ -75,7 +68,7 @@ func (s *Service) Execute(ctx context.Context, input ExecuteInput) (*ExecuteOutp
 			return fmt.Errorf("failed to create group member: %w", err)
 		}
 
-		output = &ExecuteOutput{
+		output = &CreateOutput{
 			GroupID: newGroup.ID,
 			UserID:  newMember.UserID,
 		}
@@ -88,29 +81,4 @@ func (s *Service) Execute(ctx context.Context, input ExecuteInput) (*ExecuteOutp
 	}
 
 	return output, nil
-}
-
-func (s *Service) WithTransaction(ctx context.Context, fn func(tx *gorm.DB) error) error {
-	tx := s.db.Begin()
-	if err := tx.Error; err != nil {
-		return err
-	}
-
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-			panic(r)
-		}
-	}()
-
-	if err := fn(tx); err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	if err := tx.Commit().Error; err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
-	}
-
-	return nil
 }

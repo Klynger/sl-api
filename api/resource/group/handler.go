@@ -10,27 +10,27 @@ import (
 	groupModel "sl-api/api/model/group"
 	e "sl-api/api/resource/common/err"
 	"sl-api/api/resource/groupMember"
-	"sl-api/api/services/create_group"
+	"sl-api/api/services/group"
 	validatorUtil "sl-api/util/validator"
 )
 
 type API struct {
 	validator            *validator.Validate
-	create_group_service *create_group.Service
+	create_group_service *group_service.CreateService
 }
 
-func newGroupRepo(db *gorm.DB) create_group.GroupRepository {
+func newGroupRepo(db *gorm.DB) group_service.GroupRepository {
 	return NewRepository(db)
 }
 
-func newMemberRepo(db *gorm.DB) create_group.GroupMemberRepository {
+func newMemberRepo(db *gorm.DB) group_service.GroupMemberRepository {
 	return groupMember.NewRepository(db)
 }
 
 func New(db *gorm.DB, validator *validator.Validate) *API {
 	return &API{
 		validator:            validator,
-		create_group_service: create_group.NewService(db, newGroupRepo, newMemberRepo),
+		create_group_service: group_service.NewCreateService(db, newGroupRepo, newMemberRepo),
 	}
 }
 
