@@ -7,6 +7,7 @@ import (
 	groupMemberModel "sl-api/api/model/group_member"
 	inviteModel "sl-api/api/model/invite"
 	userModel "sl-api/api/model/user"
+	group_service "sl-api/api/services/group"
 )
 
 type Repository struct {
@@ -27,7 +28,7 @@ func (r *Repository) Create(invite *inviteModel.Invite) (*inviteModel.Invite, er
 	return invite, nil
 }
 
-func (r *Repository) GetCreateInviteData(input *GetCreateInviteDataInput) (*GetCreateInviteDataOutput, error) {
+func (r *Repository) GetCreateInviteData(input *group_service.GetCreateInviteDataInput) (*group_service.GetCreateInviteDataOutput, error) {
 	type queryResult struct {
 		// Flags
 		GroupExists      bool
@@ -101,7 +102,7 @@ func (r *Repository) GetCreateInviteData(input *GetCreateInviteDataInput) (*GetC
 			AND au.deleted_at IS NULL
 	`
 
-	err := r.db.WithContext(input.ctx).Raw(
+	err := r.db.WithContext(input.Ctx).Raw(
 		query,
 		input.InvitedUserID, // iu.id
 		input.GroupID,       // g.id
@@ -119,7 +120,7 @@ func (r *Repository) GetCreateInviteData(input *GetCreateInviteDataInput) (*GetC
 		return nil, err
 	}
 
-	inviteData := &GetCreateInviteDataOutput{
+	inviteData := &group_service.GetCreateInviteDataOutput{
 		GroupExists:      result.GroupExists,
 		IsAlreadyInvited: result.IsAlreadyInvited,
 		IsAlreadyMember:  result.IsAlreadyMember,

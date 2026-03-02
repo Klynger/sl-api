@@ -74,6 +74,7 @@ func (s *CreateInviteService) Execute(ctx context.Context, input CreateInviteInp
 	inviteRepo := s.newInviteRepo(s.db)
 
 	inviteData, err := inviteRepo.GetCreateInviteData(&GetCreateInviteDataInput{
+		Ctx:           ctx,
 		GroupID:       input.GroupID,
 		InvitedUserID: input.InvitedUserID,
 		AuthedUserID:  authedUserID,

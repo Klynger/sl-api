@@ -27,7 +27,7 @@ type InviteRepository interface {
 }
 
 type GetCreateInviteDataInput struct {
-	ctx           context.Context
+	Ctx           context.Context
 	GroupID       uuid.UUID
 	AuthedUserID  uuid.UUID
 	InvitedUserID uuid.UUID
