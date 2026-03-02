@@ -27,7 +27,7 @@ func (r *Repository) Create(invite *inviteModel.Invite) (*inviteModel.Invite, er
 	return invite, nil
 }
 
-func (r *Repository) GetInviteData(input *GetInviteDataInput) (*GetInviteDataOutput, error) {
+func (r *Repository) GetCreateInviteData(input *GetCreateInviteDataInput) (*GetCreateInviteDataOutput, error) {
 	type queryResult struct {
 		// Flags
 		GroupExists      bool
@@ -119,7 +119,7 @@ func (r *Repository) GetInviteData(input *GetInviteDataInput) (*GetInviteDataOut
 		return nil, err
 	}
 
-	inviteData := &GetInviteDataOutput{
+	inviteData := &GetCreateInviteDataOutput{
 		GroupExists:      result.GroupExists,
 		IsAlreadyInvited: result.IsAlreadyInvited,
 		IsAlreadyMember:  result.IsAlreadyMember,

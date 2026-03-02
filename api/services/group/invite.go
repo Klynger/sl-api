@@ -13,20 +13,41 @@ import (
 	userModel "sl-api/api/model/user"
 )
 
-type InviteService struct {
+type newGroupMemberRepoType = func(db *gorm.DB) GroupMemberRepository
+type newGroupRepoType = func(db *gorm.DB) GroupRepository
+type newInviteRepoType = func(db *gorm.DB) InviteRepository
+type newUserRepoType = func(db *gorm.DB) UserRepository
+
+type CreateInviteService struct {
 	db                 *gorm.DB
-	newGroupMemberRepo func(db *gorm.DB) GroupMemberRepository
-	newGroupRepo       func(db *gorm.DB) GroupRepository
-	newInviteRepo      func(db *gorm.DB) InviteRepository
-	newUserRepo        func(db *gorm.DB) UserRepository
+	newGroupMemberRepo newGroupMemberRepoType
+	newGroupRepo       newGroupRepoType
+	newInviteRepo      newInviteRepoType
+	newUserRepo        newUserRepoType
 }
 
-type InviteInput struct {
+func NewCreateInviteService(
+	db *gorm.DB,
+	newGroupMemberRepo newGroupMemberRepoType,
+	newGroupRepo newGroupRepoType,
+	newInviteRepo newInviteRepoType,
+	newUserRepo newUserRepoType,
+) *CreateInviteService {
+	return &CreateInviteService{
+		db:                 db,
+		newGroupMemberRepo: newGroupMemberRepo,
+		newGroupRepo:       newGroupRepo,
+		newInviteRepo:      newInviteRepo,
+		newUserRepo:        newUserRepo,
+	}
+}
+
+type CreateInviteInput struct {
 	GroupID       uuid.UUID
 	InvitedUserID uuid.UUID
 }
 
-type InviteOutput struct {
+type CreateInviteOutput struct {
 	InviteID uuid.UUID
 }
 
@@ -40,7 +61,7 @@ type userResult struct {
 	err  error
 }
 
-func (s *InviteService) Execute(ctx context.Context, input InviteInput) (*InviteOutput, error) {
+func (s *CreateInviteService) Execute(ctx context.Context, input CreateInviteInput) (*CreateInviteOutput, error) {
 	authedUserID, err := middleware.GetAuthedUserIDFromCtx(ctx)
 	if err != nil {
 		return nil, err
@@ -50,35 +71,41 @@ func (s *InviteService) Execute(ctx context.Context, input InviteInput) (*Invite
 		return nil, fmt.Errorf("INVITE_SELF_ERROR")
 	}
 
-	groupCh := make(chan groupResult)
-	userCh := make(chan userResult)
+	inviteRepo := s.newInviteRepo(s.db)
 
-	go func() {
-		groupRepo := s.newGroupRepo(s.db)
+	inviteData, err := inviteRepo.GetCreateInviteData(&GetCreateInviteDataInput{
+		GroupID:       input.GroupID,
+		InvitedUserID: input.InvitedUserID,
+		AuthedUserID:  authedUserID,
+	})
 
-		group, err := groupRepo.Read(input.GroupID)
-		groupCh <- groupResult{group: group, err: err}
-	}()
+	if err != nil {
+		return nil, fmt.Errorf("FAILED_TO_GET_CREATE_INVITE_DATA_ERROR: %w", err)
+	}
 
-	go func() {
-		userRepo := s.newUserRepo(s.db)
-
-		user, err := userRepo.Read(input.InvitedUserID)
-		userCh <- userResult{user: user, err: err}
-	}()
-
-	groupRes := <-groupCh
-	userRes := <-userCh
-
-	if groupRes.err != nil {
+	if !inviteData.GroupExists {
 		return nil, fmt.Errorf("GROUP_NOT_FOUND_ERROR")
 	}
 
-	if userRes.err != nil {
-		return nil, fmt.Errorf("USER_NOT_FOUND_ERROR")
+	// TODO: Change this to guarantee idempotency. Return the invite instead of an error if already invited
+	if inviteData.IsAlreadyInvited {
+		return nil, fmt.Errorf("ALREADY_INVITED_ERROR")
 	}
 
-	inviteRepo := s.newInviteRepo(s.db)
+	if inviteData.IsAlreadyMember {
+		return nil, fmt.Errorf("ALREADY_MEMBER_ERROR")
+	}
+
+	authedUserMember := inviteData.AuthedUserMember
+
+	if authedUserMember == nil {
+		return nil, fmt.Errorf("NOT_A_MEMBER_ERROR")
+	}
+
+	// Only owners can invite
+	if !authedUserMember.IsOwner() {
+		return nil, fmt.Errorf("INSUFFICIENT_PERMISSIONS_ERROR")
+	}
 
 	invite, err := inviteRepo.Create(&inviteModel.Invite{
 		ID:            uuid.New(),
@@ -91,7 +118,7 @@ func (s *InviteService) Execute(ctx context.Context, input InviteInput) (*Invite
 		return nil, fmt.Errorf("FAILED_TO_CREATE_INVITE_ERROR: %w", err)
 	}
 
-	return &InviteOutput{
+	return &CreateInviteOutput{
 		InviteID: invite.ID,
 	}, nil
 }

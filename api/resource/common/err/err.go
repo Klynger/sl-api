@@ -20,6 +20,11 @@ var (
 	RespGenericFailure = []byte(`{"error": "something went wrong"}`)
 
 	RespUnauthorized = []byte(`{"error": "unauthorized"}`)
+
+	RespInvalidUUID = []byte(`{"code": "INVALID_UUID", "error": "invalid uuid"}`)
+
+	// TODO: Create specific errors in the service layer and return them here instead of generic server error
+	RespGroupNotFound = []byte(`{"code": "GROUP_NOT_FOUND", "error": "group not found"}`)
 )
 
 func ServerError(w http.ResponseWriter, reps []byte) {

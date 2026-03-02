@@ -79,6 +79,14 @@ type PublicGroupMember struct {
 	Roles   Roles
 }
 
+func (d *PublicGroupMember) HasRole(role Role) bool {
+	return slices.Contains(d.Roles, role)
+}
+
+func (d *PublicGroupMember) IsOwner() bool {
+	return d.HasRole(RoleOwner)
+}
+
 func (GroupMember) TableName() string {
 	return "group_members"
 }

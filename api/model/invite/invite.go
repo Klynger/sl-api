@@ -16,3 +16,7 @@ type Invite struct {
 	UpdatedAt     time.Time
 	DeletedAt     gorm.DeletedAt
 }
+
+type Form struct {
+	InvitedUserID string `json:"invitedUserId" validate:"required,min=1"`
+}

@@ -1,6 +1,8 @@
 package group_service
 
 import (
+	"context"
+
 	"github.com/google/uuid"
 
 	groupModel "sl-api/api/model/group"
@@ -16,11 +18,28 @@ type GroupRepository interface {
 
 type GroupMemberRepository interface {
 	Create(member *groupMemberModel.GroupMember) (*groupMemberModel.GroupMember, error)
-	FindByUserAndGroup(userID, groupID uuid.UUID) (*groupMemberModel.GroupMember, error)
+	FindByUserAndGroup(userID, groupID uuid.UUID) (*groupMemberModel.GroupMemberDetails, error)
 }
 
 type InviteRepository interface {
 	Create(invite *inviteModel.Invite) (*inviteModel.Invite, error)
+	GetCreateInviteData(input *GetCreateInviteDataInput) (*GetCreateInviteDataOutput, error)
+}
+
+type GetCreateInviteDataInput struct {
+	ctx           context.Context
+	GroupID       uuid.UUID
+	AuthedUserID  uuid.UUID
+	InvitedUserID uuid.UUID
+}
+
+type GetCreateInviteDataOutput struct {
+	GroupExists      bool
+	IsAlreadyInvited bool
+	IsAlreadyMember  bool
+	AuthedUser       *userModel.PublicUser
+	InvitedUser      *userModel.PublicUser
+	AuthedUserMember *groupMemberModel.PublicGroupMember
 }
 
 type UserRepository interface {

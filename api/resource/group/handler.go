@@ -15,8 +15,8 @@ import (
 )
 
 type API struct {
-	validator            *validator.Validate
-	create_group_service *group_service.CreateService
+	validator          *validator.Validate
+	createGroupService *group_service.CreateService
 }
 
 func newGroupRepo(db *gorm.DB) group_service.GroupRepository {
@@ -29,8 +29,8 @@ func newMemberRepo(db *gorm.DB) group_service.GroupMemberRepository {
 
 func New(db *gorm.DB, validator *validator.Validate) *API {
 	return &API{
-		validator:            validator,
-		create_group_service: group_service.NewCreateService(db, newGroupRepo, newMemberRepo),
+		validator:          validator,
+		createGroupService: group_service.NewCreateService(db, newGroupRepo, newMemberRepo),
 	}
 }
 
@@ -66,11 +66,11 @@ func (a *API) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	input := create_group.ExecuteInput{
+	input := group_service.CreateInput{
 		Name: form.Name,
 	}
 
-	output, err := a.create_group_service.Execute(r.Context(), input)
+	output, err := a.createGroupService.Execute(r.Context(), input)
 	if err != nil {
 		e.ServerError(w, e.RespDBDataInsertFailure)
 		return

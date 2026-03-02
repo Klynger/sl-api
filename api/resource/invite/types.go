@@ -14,14 +14,14 @@ type InviteData struct {
 	IsAlreadyInvited bool
 	AuthedUser       *userModel.PublicUser
 }
-type GetInviteDataInput struct {
+type GetCreateInviteDataInput struct {
 	ctx           context.Context
 	GroupID       uuid.UUID
 	AuthedUserID  uuid.UUID
 	InvitedUserID uuid.UUID
 }
 
-type GetInviteDataOutput struct {
+type GetCreateInviteDataOutput struct {
 	GroupExists      bool
 	IsAlreadyInvited bool
 	IsAlreadyMember  bool
