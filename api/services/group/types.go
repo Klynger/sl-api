@@ -24,6 +24,8 @@ type GroupMemberRepository interface {
 type InviteRepository interface {
 	Create(invite *inviteModel.Invite) (*inviteModel.Invite, error)
 	GetCreateInviteData(input *GetCreateInviteDataInput) (*GetCreateInviteDataOutput, error)
+	GetAcceptInviteData(groupID, invitedUserID uuid.UUID) (*inviteModel.Invite, error)
+	Delete(id uuid.UUID) error
 }
 
 type GetCreateInviteDataInput struct {

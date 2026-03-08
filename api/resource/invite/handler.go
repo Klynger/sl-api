@@ -20,15 +20,16 @@ import (
 )
 
 type API struct {
-	validator     *validator.Validate
-	inviteService *group_service.CreateInviteService
+	validator           *validator.Validate
+	inviteService       *group_service.CreateInviteService
+	acceptInviteService *group_service.AcceptInviteService
 }
 
 func newGroupRepo(db *gorm.DB) group_service.GroupRepository {
 	return group.NewRepository(db)
 }
 
-func newMemberRepo(db *gorm.DB) group_service.GroupMemberRepository {
+func newGroupMemberRepo(db *gorm.DB) group_service.GroupMemberRepository {
 	return groupMember.NewRepository(db)
 }
 
@@ -45,10 +46,15 @@ func New(db *gorm.DB, validator *validator.Validate) *API {
 		validator: validator,
 		inviteService: group_service.NewCreateInviteService(
 			db,
-			newMemberRepo,
+			newGroupMemberRepo,
 			newGroupRepo,
 			newInviteRepo,
 			newUserRepo,
+		),
+		acceptInviteService: group_service.NewAcceptInviteService(
+			db,
+			newInviteRepo,
+			newGroupMemberRepo,
 		),
 	}
 }
@@ -89,6 +95,7 @@ func (a *API) Create(w http.ResponseWriter, r *http.Request) {
 	groupID, err := uuid.Parse(chi.URLParam(r, "groupId"))
 	if err != nil {
 		e.BadRequest(w, e.RespInvalidUUID)
+		return
 	}
 
 	invitedUserID, err := uuid.Parse(form.InvitedUserID)
@@ -110,7 +117,7 @@ func (a *API) Create(w http.ResponseWriter, r *http.Request) {
 		e.ServerError(w, e.RespGenericFailure)
 		return
 
-		// TODO: Crate these errors
+		// TODO: Create these errors
 		// switch err {
 		// case group_service.ErrGroupNotFound:
 		// 	e.NotFound(w, e.RespGroupNotFound)
@@ -133,4 +140,35 @@ func (a *API) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusCreated)
+}
+
+func (a *API) AcceptInvite(w http.ResponseWriter, r *http.Request) {
+	groupID, err := uuid.Parse(chi.URLParam(r, "groupId"))
+	if err != nil {
+		e.BadRequest(w, e.RespInvalidUUID)
+		return
+	}
+
+	input := group_service.AcceptInviteInput{
+		GroupID: groupID,
+	}
+
+	output, err := a.acceptInviteService.Execute(r.Context(), input)
+
+	if err != nil {
+		fmt.Println("Error executing accept invite service:", err)
+
+		e.ServerError(w, e.RespGenericFailure)
+		return
+
+		// TODO: Create the correct errors
+	}
+
+	if err := json.NewEncoder(w).Encode(output); err != nil {
+		fmt.Println("Error encoding accept invite output:", err)
+		e.ServerError(w, e.RespJSONEncodeFailure)
+		return
+	}
+
+	w.WriteHeader(http.StatusAccepted)
 }

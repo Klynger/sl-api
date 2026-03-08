@@ -154,14 +154,29 @@ func (r *Repository) GetCreateInviteData(input *group_service.GetCreateInviteDat
 	return inviteData, nil
 }
 
+func (r *Repository) GetAcceptInviteData(groupID, invitedUserID uuid.UUID) (*inviteModel.Invite, error) {
+	invite := &inviteModel.Invite{}
+
+	err := r.db.Where("invited_user_id = ? AND group_ID = ?", invitedUserID.String(), groupID.String()).First(&invite).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return invite, nil
+}
+
+func (r *Repository) AcceptInvite(invite *inviteModel.Invite) {
+}
+
 func (r *Repository) DeleteAllInvitesFromUser(invitedUserID uuid.UUID) (int64, error) {
 	result := r.db.Where("invited_user_id = ?", invitedUserID).Delete(&inviteModel.Invite{})
 
 	return result.RowsAffected, result.Error
 }
 
-func (r *Repository) Delete(id uuid.UUID) (int64, error) {
+func (r *Repository) Delete(id uuid.UUID) error {
 	result := r.db.Where("id = ?", id).Delete(&inviteModel.Invite{})
 
-	return result.RowsAffected, result.Error
+	return result.Error
 }

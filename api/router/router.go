@@ -25,6 +25,8 @@ func New(db *gorm.DB, validator *validator.Validate, authSessionStore *sessions.
 		groupAPI := group.New(db, validator)
 		inviteAPI := invite.New(db, validator)
 
+		r.Use(middleware.SetDefaultV1Headers)
+
 		// Public routes
 		r.Post("/users", userAPI.Register)
 		r.Post("/users/login", userAPI.Login)
@@ -41,6 +43,7 @@ func New(db *gorm.DB, validator *validator.Validate, authSessionStore *sessions.
 
 			authedRouter.Post("/groups", groupAPI.Create)
 			authedRouter.Post("/groups/{groupId}/invites", inviteAPI.Create)
+			authedRouter.Post("/groups/{groupId}/invites/accept", inviteAPI.AcceptInvite)
 		})
 	})
 
