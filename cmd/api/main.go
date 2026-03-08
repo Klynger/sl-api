@@ -10,7 +10,7 @@ import (
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
 
-	"sl-api/api/router"
+	"sl-api/api/routes"
 	"sl-api/config"
 	validatorUtil "sl-api/util/validator"
 )
@@ -41,10 +41,10 @@ func main() {
 
 	authStore := sessions.NewCookieStore([]byte(conf.StoreSessions.AuthSecret))
 
-	r := router.New(db, validator, authStore, conf.Server.Debug, conf.StoreSessions.AuthMaxAgeSecs)
+	handlers := router.New(db, validator, authStore, conf.Server.Debug, conf.StoreSessions.AuthMaxAgeSecs)
 	s := &http.Server{
 		Addr:         fmt.Sprintf(":%d", conf.Server.Port),
-		Handler:      r,
+		Handler:      handlers,
 		ReadTimeout:  conf.Server.TimeoutRead,
 		WriteTimeout: conf.Server.TimeoutWrite,
 		IdleTimeout:  conf.Server.TimeoutIdle,

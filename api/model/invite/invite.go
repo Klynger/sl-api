@@ -1,4 +1,4 @@
-package invite
+package inviteModel
 
 import (
 	"time"

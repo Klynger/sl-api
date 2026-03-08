@@ -4,11 +4,10 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	errorsCommon "sl-api/api/routes/common/errors"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/sessions"
-
-	e "sl-api/api/resource/common/err"
 )
 
 func RequireAuth(authSessionStore *sessions.CookieStore, maxAge int) func(http.Handler) http.Handler {
@@ -16,7 +15,7 @@ func RequireAuth(authSessionStore *sessions.CookieStore, maxAge int) func(http.H
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			session, err := authSessionStore.Get(r, "auth-session")
 			if err != nil {
-				e.ServerError(w, e.RespSessionAccessFailure)
+				errorsCommon.ServerError(w, errorsCommon.RespSessionAccessFailure)
 				return
 			}
 
@@ -33,7 +32,7 @@ func RequireAuth(authSessionStore *sessions.CookieStore, maxAge int) func(http.H
 			session.Options.MaxAge = maxAge
 			err = session.Save(r, w)
 			if err != nil {
-				e.ServerError(w, e.RespGenericFailure)
+				errorsCommon.ServerError(w, errorsCommon.RespGenericFailure)
 				return
 			}
 

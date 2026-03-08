@@ -1,4 +1,4 @@
-package product
+package productModel
 
 import (
 	"time"

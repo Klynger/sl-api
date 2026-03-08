@@ -1,4 +1,4 @@
-package group_service
+package groupService
 
 import (
 	"context"
@@ -8,37 +8,22 @@ import (
 	"gorm.io/gorm"
 
 	"sl-api/api/middleware"
-	groupModel "sl-api/api/model/group"
-	inviteModel "sl-api/api/model/invite"
-	userModel "sl-api/api/model/user"
+	 "sl-api/api/model/group"
+	 "sl-api/api/model/invite"
+	 "sl-api/api/model/user"
+	"sl-api/api/repositories/invite"
+	groupTypes "sl-api/api/types/group"
 )
 
-type newGroupMemberRepoType = func(db *gorm.DB) GroupMemberRepository
-type newGroupRepoType = func(db *gorm.DB) GroupRepository
-type newInviteRepoType = func(db *gorm.DB) InviteRepository
-type newUserRepoType = func(db *gorm.DB) UserRepository
-
 type CreateInviteService struct {
-	db                 *gorm.DB
-	newGroupMemberRepo newGroupMemberRepoType
-	newGroupRepo       newGroupRepoType
-	newInviteRepo      newInviteRepoType
-	newUserRepo        newUserRepoType
+	db *gorm.DB
 }
 
 func NewCreateInviteService(
 	db *gorm.DB,
-	newGroupMemberRepo newGroupMemberRepoType,
-	newGroupRepo newGroupRepoType,
-	newInviteRepo newInviteRepoType,
-	newUserRepo newUserRepoType,
 ) *CreateInviteService {
 	return &CreateInviteService{
-		db:                 db,
-		newGroupMemberRepo: newGroupMemberRepo,
-		newGroupRepo:       newGroupRepo,
-		newInviteRepo:      newInviteRepo,
-		newUserRepo:        newUserRepo,
+		db: db,
 	}
 }
 
@@ -71,9 +56,9 @@ func (s *CreateInviteService) Execute(ctx context.Context, input CreateInviteInp
 		return nil, fmt.Errorf("INVITE_SELF_ERROR")
 	}
 
-	inviteRepo := s.newInviteRepo(s.db)
+	inviteRepo := inviteRepository.New(s.db)
 
-	inviteData, err := inviteRepo.GetCreateInviteData(&GetCreateInviteDataInput{
+	inviteData, err := inviteRepo.GetCreateInviteData(&groupTypes.GetCreateInviteDataInput{
 		Ctx:           ctx,
 		GroupID:       input.GroupID,
 		InvitedUserID: input.InvitedUserID,
