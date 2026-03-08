@@ -72,13 +72,13 @@ func (r *Repository) GetCreateInviteData(input *group_service.GetCreateInviteDat
 			iu.user_name as invited_name,
 			iu.last_name as invited_last_name,
 			
-			-- Authed user's member data
-			au_gm.id as authed_member_id,
-			au_gm.user_id as authed_member_user_id,
-			au_gm.group_id as authed_member_group_id,
-			au_gm.roles as authed_member_roles,
-			
-		FROM users AS au
+		-- Authed user's member data
+		au_gm.id as authed_member_id,
+		au_gm.user_id as authed_member_user_id,
+		au_gm.group_id as authed_member_group_id,
+		au_gm.roles as authed_member_roles
+		
+	FROM users AS au
 		LEFT JOIN users AS iu 
 			ON iu.id = ? 
 			AND iu.deleted_at IS NULL
