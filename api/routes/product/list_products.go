@@ -21,7 +21,7 @@ import (
 func (a *API) List(w http.ResponseWriter, r *http.Request) {
 	products, err := a.repository.List()
 	if err != nil {
-		errorsCommon.ServerError(w, errorsCommon.RespDBDataAccessFailure)
+		errorsCommon.ServerError(w, errorsCommon.NewError(errorsCommon.CodeDBAccessFailure, "could not list the products"))
 		return
 	}
 
@@ -31,7 +31,7 @@ func (a *API) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewEncoder(w).Encode(products.ToDto()); err != nil {
-		errorsCommon.ServerError(w, errorsCommon.RespJSONEncodeFailure)
+		errorsCommon.ServerError(w, errorsCommon.NewError(errorsCommon.CodeJSONEncodeFailure, "could not encode the response"))
 		return
 	}
 }

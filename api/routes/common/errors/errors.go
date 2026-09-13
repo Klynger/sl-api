@@ -1,51 +1,143 @@
 package errorsCommon
 
 import (
+	"encoding/json"
+	"errors"
 	"net/http"
+
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
-var (
-	RespDBDataInsertFailure  = []byte(`{"error": "db data insert failure"}`)
-	RespDBDataAccessFailure  = []byte(`{"error": "db data access failure"}`)
-	RespDBDataUpdateFailure  = []byte(`{"error": "db data update failure"}`)
-	RespDBDdataRemoveFailure = []byte(`{"error": "db data remove failure"}`)
+const (
+	CodeInvalidJSON       = "INVALID_JSON"
+	CodeInvalidUUID       = "INVALID_UUID"
+	CodeJSONEncodeFailure = "JSON_ENCODE_FAILURE"
+	CodeInternalError     = "INTERNAL_ERROR"
 
-	RespJSONEncodeFailure = []byte(`{"error": "json encode failure"}`)
-	RespJSONDecodeFailure = []byte(`{"error": "json decode failure"}`)
+	CodeDBAccessFailure = "DB_ACCESS_FAILURE"
+	CodeDBInsertFailure = "DB_INSERT_FAILURE"
+	CodeDBUpdateFailure = "DB_UPDATE_FAILURE"
+	CodeDBRemoveFailure = "DB_REMOVE_FAILURE"
 
-	RespInvalidURLParamID = []byte(`{"error": "invalid url param-id"}`)
+	CodeDuplicateEntry      = "DUPLICATE_ENTRY"
+	CodeForeignKeyViolation = "FOREIGN_KEY_VIOLATION"
 
-	RespSessionAccessFailure = []byte(`{"error": "session access failure"}`)
+	CodeProductNotFound = "PRODUCT_NOT_FOUND"
+	CodeUserNotFound    = "USER_NOT_FOUND"
+	CodeGroupNotFound   = "GROUP_NOT_FOUND"
+	CodeInviteNotFound  = "INVITE_NOT_FOUND"
 
-	RespGenericFailure = []byte(`{"error": "something went wrong"}`)
+	CodeInvalidCredentials = "INVALID_CREDENTIALS"
+	CodeUnauthorized       = "UNAUTHORIZED"
+	CodeSessionFailure     = "SESSION_FAILURE"
+	CodeSessionSaveFailure = "SESSION_SAVE_FAILURE"
 
-	RespUnauthorized = []byte(`{"error": "unauthorized"}`)
+	CodeInviteSelf              = "INVITE_SELF"
+	CodeAlreadyInvited          = "ALREADY_INVITED"
+	CodeAlreadyMember           = "ALREADY_MEMBER"
+	CodeNotAMember              = "NOT_A_MEMBER"
+	CodeInsufficientPermissions = "INSUFFICIENT_PERMISSIONS"
+	CodeUsernameTaken           = "USERNAME_TAKEN"
 
-	RespInvalidUUID = []byte(`{"code": "INVALID_UUID", "error": "invalid uuid"}`)
-
-	// TODO: Create specific errors in the service layer and return them here instead of generic server error
-	RespGroupNotFound = []byte(`{"code": "GROUP_NOT_FOUND", "error": "group not found"}`)
+	CodeRequired         = "REQUIRED"
+	CodeMaxLength        = "MAX_LENGTH"
+	CodeInvalidURL       = "INVALID_URL"
+	CodeAlphaSpace       = "ALPHA_SPACE"
+	CodeInvalidDate      = "INVALID_DATE"
+	CodeValidationFailed = "VALIDATION_FAILED"
 )
 
-func ServerError(w http.ResponseWriter, reps []byte) {
-	w.WriteHeader(http.StatusInternalServerError)
-	w.Write(reps)
+type ErrorItem struct {
+	Code   string         `json:"code"`
+	Detail string         `json:"detail"`
+	Meta   map[string]any `json:"meta,omitempty"`
 }
 
-func BadRequest(w http.ResponseWriter, reps []byte) {
-	w.WriteHeader(http.StatusBadRequest)
-	w.Write(reps)
+type ErrorResponse struct {
+	Errors []ErrorItem `json:"errors"`
 }
 
-func ValidationErrors(w http.ResponseWriter, reps []byte) {
-	w.WriteHeader(http.StatusUnprocessableEntity)
-	w.Write(reps)
+func NewError(code, detail string) ErrorItem {
+	return ErrorItem{Code: code, Detail: detail}
 }
 
-type Error struct {
-	Error string `json:"error"`
+func NewErrorWithMeta(code, detail string, meta map[string]any) ErrorItem {
+	return ErrorItem{Code: code, Detail: detail, Meta: meta}
 }
 
-type Errors struct {
-	Errors []string `json:"errors"`
+func writeJSON(w http.ResponseWriter, status int, errors ...ErrorItem) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(ErrorResponse{Errors: errors})
+}
+
+func ServerError(w http.ResponseWriter, errors ...ErrorItem) {
+	writeJSON(w, http.StatusInternalServerError, errors...)
+}
+
+func BadRequest(w http.ResponseWriter, errors ...ErrorItem) {
+	writeJSON(w, http.StatusBadRequest, errors...)
+}
+
+func ValidationErrors(w http.ResponseWriter, errors ...ErrorItem) {
+	writeJSON(w, http.StatusUnprocessableEntity, errors...)
+}
+
+func NotFound(w http.ResponseWriter, errors ...ErrorItem) {
+	writeJSON(w, http.StatusNotFound, errors...)
+}
+
+func Unauthorized(w http.ResponseWriter, errors ...ErrorItem) {
+	writeJSON(w, http.StatusUnauthorized, errors...)
+}
+
+func Forbidden(w http.ResponseWriter, errors ...ErrorItem) {
+	writeJSON(w, http.StatusForbidden, errors...)
+}
+
+func Conflict(w http.ResponseWriter, errors ...ErrorItem) {
+	writeJSON(w, http.StatusConflict, errors...)
+}
+
+// ClassifyDBError maps well-known Postgres constraint violations to specific
+// error items. It reports false when the error is not one it recognizes, in
+// which case the caller should fall back to a generic response.
+func ClassifyDBError(err error) (ErrorItem, bool) {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) {
+		return ErrorItem{}, false
+	}
+
+	switch pgErr.Code {
+	case "23505": // unique_violation
+		return NewErrorWithMeta(CodeDuplicateEntry, "duplicate entry", map[string]any{
+			"constraint": pgErr.ConstraintName,
+		}), true
+	case "23503": // foreign_key_violation
+		return NewErrorWithMeta(CodeForeignKeyViolation, "referenced record does not exist", map[string]any{
+			"constraint": pgErr.ConstraintName,
+		}), true
+	}
+
+	return ErrorItem{}, false
+}
+
+// WriteDBError writes a classified constraint violation with its proper status
+// (409 for duplicates, 422 for foreign key violations), or the fallback item
+// as a 500 when the error is not a recognized constraint violation.
+func WriteDBError(w http.ResponseWriter, err error, fallback ErrorItem) {
+	item, ok := ClassifyDBError(err)
+	if !ok {
+		ServerError(w, fallback)
+		return
+	}
+
+	switch item.Code {
+	case CodeDuplicateEntry:
+		Conflict(w, item)
+	case CodeForeignKeyViolation:
+		ValidationErrors(w, item)
+	default:
+		ServerError(w, item)
+	}
 }

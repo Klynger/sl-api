@@ -3,13 +3,14 @@ package userHandlers
 import (
 	"encoding/json"
 	"net/http"
+
 	"sl-api/api/routes/common/errors"
 )
 
 func (a *API) Logout(w http.ResponseWriter, r *http.Request) {
 	session, err := a.authSessionStore.Get(r, "auth-session")
 	if err != nil {
-		errorsCommon.ServerError(w, errorsCommon.RespSessionAccessFailure)
+		errorsCommon.ServerError(w, errorsCommon.NewError(errorsCommon.CodeSessionFailure, "could not read the session"))
 		return
 	}
 
@@ -17,7 +18,7 @@ func (a *API) Logout(w http.ResponseWriter, r *http.Request) {
 
 	err = session.Save(r, w)
 	if err != nil {
-		errorsCommon.ServerError(w, errorsCommon.RespGenericFailure)
+		errorsCommon.ServerError(w, errorsCommon.NewError(errorsCommon.CodeSessionSaveFailure, "could not save the session"))
 		return
 	}
 
@@ -26,11 +27,9 @@ func (a *API) Logout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		errorsCommon.ServerError(w, errorsCommon.RespJSONEncodeFailure)
+		errorsCommon.ServerError(w, errorsCommon.NewError(errorsCommon.CodeJSONEncodeFailure, "could not encode the response"))
 		return
 	}
-
-	w.WriteHeader(http.StatusOK)
 }
 
 type LogoutResponse struct {
