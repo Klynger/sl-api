@@ -2,10 +2,11 @@ package userHandlers
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
+	"net/http"
+
 	"github.com/gorilla/sessions"
 	"gorm.io/gorm"
-	"net/http"
 
 	"sl-api/api/model/user"
 	"sl-api/api/routes/common/errors"
@@ -15,43 +16,43 @@ import (
 func (a *API) Login(w http.ResponseWriter, r *http.Request) {
 	form := &userModel.LoginForm{}
 	if err := json.NewDecoder(r.Body).Decode(form); err != nil {
-		errorsCommon.ServerError(w, errorsCommon.RespJSONDecodeFailure)
+		errorsCommon.BadRequest(w, errorsCommon.NewError(errorsCommon.CodeInvalidJSON, "invalid JSON in request body"))
 		return
 	}
 
 	if err := a.validator.Struct(form); err != nil {
-		respBody, err := json.Marshal(validatorUtil.ToErrResponse(err))
-		if err != nil {
-			errorsCommon.ServerError(w, errorsCommon.RespJSONEncodeFailure)
+		items := validatorUtil.ToErrResponse(err)
+		if items == nil {
+			errorsCommon.ServerError(w, errorsCommon.NewError(errorsCommon.CodeInternalError, "unexpected validation error"))
 			return
 		}
 
-		errorsCommon.ValidationErrors(w, respBody)
+		errorsCommon.ValidationErrors(w, items...)
 		return
 	}
 
 	userCredentials, err := a.repository.ReadByUsername(form.Username)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			// TODO: Do something to avoid timing attacks
-			w.WriteHeader(http.StatusNotFound)
+			errorsCommon.Unauthorized(w, errorsCommon.NewError(errorsCommon.CodeInvalidCredentials, "invalid username or password"))
 			return
 		}
 
-		errorsCommon.ServerError(w, errorsCommon.RespDBDataAccessFailure)
+		errorsCommon.ServerError(w, errorsCommon.NewError(errorsCommon.CodeDBAccessFailure, "could not read the user"))
 		return
 	}
 
 	validationResult := userCredentials.ValidateCredentials(form)
 
 	if !validationResult {
-		w.WriteHeader(http.StatusUnauthorized)
+		errorsCommon.Unauthorized(w, errorsCommon.NewError(errorsCommon.CodeInvalidCredentials, "invalid username or password"))
 		return
 	}
 
 	session, err := a.authSessionStore.Get(r, "auth-session")
 	if err != nil {
-		errorsCommon.ServerError(w, errorsCommon.RespSessionAccessFailure)
+		errorsCommon.ServerError(w, errorsCommon.NewError(errorsCommon.CodeSessionFailure, "could not read the session"))
 		return
 	}
 
@@ -67,8 +68,7 @@ func (a *API) Login(w http.ResponseWriter, r *http.Request) {
 
 	err = session.Save(r, w)
 	if err != nil {
-		fmt.Println("Session save error: ", err)
-		errorsCommon.ServerError(w, errorsCommon.RespGenericFailure)
+		errorsCommon.ServerError(w, errorsCommon.NewError(errorsCommon.CodeSessionSaveFailure, "could not save the session"))
 		return
 	}
 
@@ -78,11 +78,9 @@ func (a *API) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		errorsCommon.ServerError(w, errorsCommon.RespJSONEncodeFailure)
+		errorsCommon.ServerError(w, errorsCommon.NewError(errorsCommon.CodeJSONEncodeFailure, "could not encode the response"))
 		return
 	}
-
-	w.WriteHeader(http.StatusOK)
 }
 
 type LoginResponse struct {

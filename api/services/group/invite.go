@@ -8,9 +8,9 @@ import (
 	"gorm.io/gorm"
 
 	"sl-api/api/middleware"
-	 "sl-api/api/model/group"
-	 "sl-api/api/model/invite"
-	 "sl-api/api/model/user"
+	"sl-api/api/model/group"
+	"sl-api/api/model/invite"
+	"sl-api/api/model/user"
 	"sl-api/api/repositories/invite"
 	groupTypes "sl-api/api/types/group"
 )
@@ -53,7 +53,7 @@ func (s *CreateInviteService) Execute(ctx context.Context, input CreateInviteInp
 	}
 
 	if authedUserID == input.InvitedUserID {
-		return nil, fmt.Errorf("INVITE_SELF_ERROR")
+		return nil, ErrInviteSelf
 	}
 
 	inviteRepo := inviteRepository.New(s.db)
@@ -66,31 +66,31 @@ func (s *CreateInviteService) Execute(ctx context.Context, input CreateInviteInp
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("FAILED_TO_GET_CREATE_INVITE_DATA_ERROR: %w", err)
+		return nil, fmt.Errorf("failed to get create invite data: %w", err)
 	}
 
 	if !inviteData.GroupExists {
-		return nil, fmt.Errorf("GROUP_NOT_FOUND_ERROR")
+		return nil, ErrGroupNotFound
 	}
 
 	// TODO: Change this to guarantee idempotency. Return the invite instead of an error if already invited
 	if inviteData.IsAlreadyInvited {
-		return nil, fmt.Errorf("ALREADY_INVITED_ERROR")
+		return nil, ErrAlreadyInvited
 	}
 
 	if inviteData.IsAlreadyMember {
-		return nil, fmt.Errorf("ALREADY_MEMBER_ERROR")
+		return nil, ErrAlreadyMember
 	}
 
 	authedUserMember := inviteData.AuthedUserMember
 
 	if authedUserMember == nil {
-		return nil, fmt.Errorf("NOT_A_MEMBER_ERROR")
+		return nil, ErrNotAMember
 	}
 
 	// Only owners can invite
 	if !authedUserMember.IsOwner() {
-		return nil, fmt.Errorf("INSUFFICIENT_PERMISSIONS_ERROR")
+		return nil, ErrInsufficientPermissions
 	}
 
 	invite, err := inviteRepo.Create(&inviteModel.Invite{
@@ -101,7 +101,7 @@ func (s *CreateInviteService) Execute(ctx context.Context, input CreateInviteInp
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("FAILED_TO_CREATE_INVITE_ERROR: %w", err)
+		return nil, fmt.Errorf("failed to create invite: %w", err)
 	}
 
 	return &CreateInviteOutput{

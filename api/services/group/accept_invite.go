@@ -2,6 +2,7 @@ package groupService
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -49,7 +50,11 @@ func (s *AcceptInviteService) Execute(ctx context.Context, input AcceptInviteInp
 		inviteData, err := inviteRepo.GetAcceptInviteData(input.GroupID, authedUserID)
 
 		if err != nil {
-			return fmt.Errorf("FAILED_TO_GET_INVITE")
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrInviteNotFound
+			}
+
+			return fmt.Errorf("failed to get invite: %w", err)
 		}
 
 		memberRoles := []groupMemberModel.Role{groupMemberModel.RoleMember}
@@ -61,10 +66,12 @@ func (s *AcceptInviteService) Execute(ctx context.Context, input AcceptInviteInp
 			Roles:   memberRoles,
 		}
 
-		groupMemberRepo.Create(&groupMember)
+		if _, err := groupMemberRepo.Create(&groupMember); err != nil {
+			return fmt.Errorf("failed to create group member: %w", err)
+		}
 
 		if err := inviteRepo.Delete(inviteData.ID); err != nil {
-			return fmt.Errorf("FAILED_TO_DELETE_INVITE")
+			return fmt.Errorf("failed to delete invite: %w", err)
 		}
 
 		output = &AcceptInviteOutput{

@@ -59,12 +59,12 @@ func main() {
 	dbString := fmt.Sprintf(fmtDBString, c.Username, c.Password, c.Host, c.Port, c.DBName)
 	db, err := goose.OpenDBWithDriver(dialect, dbString)
 	if err != nil {
-		log.Fatalf(err.Error())
+		log.Fatal(err)
 	}
 
 	defer func() {
 		if err := db.Close(); err != nil {
-			log.Fatalf(err.Error())
+			log.Fatal(err)
 		}
 	}()
 
