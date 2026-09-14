@@ -45,7 +45,56 @@ Codes are defined in `api/routes/common/errors`. Statuses follow the failure typ
 
 ## Database
 
-PostgreSQL with goose SQL migrations (`migrations/`). Tables: `products`, `users` (unique username), `groups`, `group_members` (with roles), and `invites`. All tables use soft deletes via `deleted_at`.
+PostgreSQL with goose SQL migrations (`migrations/`). All tables use UUID primary keys and soft deletes via `deleted_at`.
+
+### Entity relationships
+
+```mermaid
+erDiagram
+    users ||--o{ group_members : "belongs to groups through"
+    groups ||--o{ group_members : "has members through"
+    groups ||--o{ invites : "has pending"
+    users ||--o{ invites : "sends (sender_id)"
+    users ||--o{ invites : "receives (invited_user_id)"
+
+    users {
+        uuid id PK
+        varchar user_name
+        varchar last_name
+        varchar username UK
+        text password
+    }
+
+    groups {
+        uuid id PK
+        varchar name
+    }
+
+    group_members {
+        uuid id PK
+        uuid user_id FK
+        uuid group_id FK
+        text_array roles
+    }
+
+    invites {
+        uuid id PK
+        uuid group_id FK
+        uuid sender_id FK
+        uuid invited_user_id FK
+    }
+
+    products {
+        uuid id PK
+        text product_name
+        text description
+    }
+```
+
+- **users and groups** form a many-to-many relationship through `group_members`, which also carries the member's roles (`owner`, `member`) as a Postgres text array. A user can join a group only once (`UNIQUE (user_id, group_id)`).
+- **invites** connect a group to two users: the sender (`sender_id`) and the invited user (`invited_user_id`). A user can have only one pending invite per group (`UNIQUE (group_id, invited_user_id)`). Accepting an invite creates the `group_members` row and deletes the invite in one transaction.
+- All foreign keys cascade on delete, though in practice rows are soft deleted rather than removed.
+- **products** stand alone: they have no foreign key to users or groups yet, so every product is currently global rather than belonging to a shopping list, group, or user. Connecting products to groups is the most likely next schema change.
 
 ## Testing
 
