@@ -6,6 +6,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+./scripts/check-prereqs.sh
+
 API_PID=""
 cleanup() {
   [ -n "$API_PID" ] && kill "$API_PID" 2>/dev/null || true
