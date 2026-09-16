@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
@@ -39,8 +40,11 @@ func (UserCredentials) TableName() string {
 	return "users"
 }
 
+// ValidateCredentials reports whether the login form's password matches the
+// stored bcrypt hash. The comparison is constant time, so it does not leak how
+// much of the password was correct.
 func (u *UserCredentials) ValidateCredentials(form *LoginForm) bool {
-	return u.Username == form.Username && u.Password == form.Password
+	return bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(form.Password)) == nil
 }
 
 type DTO struct {
@@ -66,11 +70,18 @@ func (u *User) ToDto() *DTO {
 	}
 }
 
-func (f *Form) ToModel() *User {
+// ToModel builds a User from the registration form, storing the password as a
+// bcrypt hash rather than in plaintext. It returns an error if hashing fails.
+func (f *Form) ToModel() (*User, error) {
+	hashed, err := bcrypt.GenerateFromPassword([]byte(f.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, err
+	}
+
 	return &User{
 		Name:     f.Name,
 		LastName: f.LastName,
 		Username: f.Username,
-		Password: f.Password,
-	}
+		Password: string(hashed),
+	}, nil
 }
