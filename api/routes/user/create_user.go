@@ -43,10 +43,14 @@ func (a *API) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newUser := form.ToModel()
+	newUser, err := form.ToModel()
+	if err != nil {
+		errorsCommon.ServerError(w, errorsCommon.NewError(errorsCommon.CodeInternalError, "could not process the password"))
+		return
+	}
 	newUser.ID = uuid.New()
 
-	_, err := a.repository.Create(newUser)
+	_, err = a.repository.Create(newUser)
 	if err != nil {
 		if item, ok := errorsCommon.ClassifyDBError(err); ok && item.Code == errorsCommon.CodeDuplicateEntry {
 			errorsCommon.Conflict(w, errorsCommon.NewError(errorsCommon.CodeUsernameTaken, "username is already taken"))
