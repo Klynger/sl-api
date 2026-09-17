@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Postgres-Backed Sessions - Plan</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    line-height: 1.65; color: #1f2933; background: #f4f5f7; padding: 24px;
+  }
+  .container { max-width: 1000px; margin: 0 auto; background: #fff; padding: 40px 48px;
+    box-shadow: 0 2px 14px rgba(0,0,0,0.08); border-radius: 10px; }
+  h1 { font-size: 2.1em; color: #1a2733; border-bottom: 3px solid #2563eb; padding-bottom: 14px; margin-bottom: 8px; }
+  .subtitle { color: #616e7c; margin-bottom: 28px; }
+  h2 { font-size: 1.5em; color: #1a2733; margin: 40px 0 14px; padding-bottom: 6px; border-bottom: 1px solid #e4e7eb; }
+  h3 { font-size: 1.15em; color: #323f4b; margin: 22px 0 8px; }
+  p { margin-bottom: 12px; }
+  ul, ol { margin: 8px 0 14px 24px; }
+  li { margin-bottom: 6px; }
+  code { background: #eef1f4; padding: 2px 6px; border-radius: 4px;
+    font-family: 'SF Mono', 'Courier New', monospace; font-size: 0.88em; color: #1e40af; }
+  pre { background: #1f2933; color: #e4e7eb; padding: 16px 18px; border-radius: 8px;
+    overflow-x: auto; margin: 12px 0 16px; font-size: 0.85em; line-height: 1.5; }
+  pre code { background: none; color: inherit; padding: 0; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 0.95em; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid #e4e7eb; vertical-align: top; }
+  th { background: #f4f5f7; font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.03em; color: #52606d; }
+  .note { background: #eef2ff; border-left: 4px solid #2563eb; padding: 12px 16px; border-radius: 4px; margin: 14px 0; }
+  .warn { background: #fff8e6; border-left: 4px solid #cb6e17; padding: 12px 16px; border-radius: 4px; margin: 14px 0; }
+  .label { font-weight: 600; color: #52606d; }
+  .pill { display: inline-block; font-size: 0.72em; font-weight: 700; letter-spacing: 0.03em;
+    text-transform: uppercase; padding: 2px 9px; border-radius: 20px; color: #fff; background: #2563eb; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Plan: Postgres-Backed Sessions</h1>
+  <p class="subtitle">Moving authentication from a stateless signed cookie to server-side sessions stored in Postgres, so the server owns identity and can revoke it. Design and phased implementation plan. Nothing here is built yet.</p>
+
+  <div class="note">
+    <strong>Why this exists.</strong> Today the cookie <em>is</em> the identity: it carries <code>user_id</code> and is only signed, so the server holds no session state and cannot revoke a session before it expires. This plan replaces that with an opaque session token backed by a database row, which enables logout-everywhere, killing a stolen session, and forcing logout on password change. As a bonus it removes the session signing secret entirely, closing several items from the security review.
+  </div>
+
+  <h2>Goals and non-goals</h2>
+  <h3>Goals</h3>
+  <ul>
+    <li>The server, not the cookie, is the source of truth for who is logged in.</li>
+    <li>Sessions can be revoked instantly (single session, all of a user's sessions, or on password change).</li>
+    <li>The cookie carries only an opaque, unguessable token with no identity or readable data inside it.</li>
+    <li>Cookie flags (<code>HttpOnly</code>, <code>Secure</code>, <code>SameSite</code>) are set correctly and unconditionally, not tied to debug mode.</li>
+  </ul>
+  <h3>Non-goals (for this iteration)</h3>
+  <ul>
+    <li>Redis or any new infrastructure. We already run Postgres; use it. Redis stays a later optimization if lookups ever become a measured bottleneck.</li>
+    <li>Refresh-token / short-lived-access-token hybrid. Overkill for now.</li>
+    <li>Fixing the committed secret storage strategy (tracked separately). This plan removes the <em>need</em> for a session secret, which helps, but the DB password handling is out of scope here.</li>
+  </ul>
+
+  <h2>How it works, end to end</h2>
+  <ol>
+    <li><span class="label">Login:</span> after the password check, generate a random 32-byte token. Store a SHA-256 <em>hash</em> of it in a new <code>sessions</code> row along with the user id and an expiry. Send the raw token to the browser in a cookie.</li>
+    <li><span class="label">Each request:</span> the middleware reads the token from the cookie, hashes it, looks up a non-expired <code>sessions</code> row by that hash, and loads <code>user_id</code> into the request context. No match or expired means 401.</li>
+    <li><span class="label">Logout:</span> delete the session row and clear the cookie. The token is now dead everywhere immediately.</li>
+    <li><span class="label">Revocation:</span> delete the relevant rows. All of a user's sessions, or a specific one.</li>
+  </ol>
+
+  <div class="note">
+    <strong>Why store a hash of the token, not the token itself?</strong> The raw token lives only in the user's cookie. The database stores only its SHA-256, so a database leak does not hand an attacker a pile of live sessions (they would have the hashes, which are useless for logging in). Same reasoning as hashing passwords, applied to session tokens. A fast hash like SHA-256 is fine here because the token is already high-entropy random, so there is nothing to brute-force.
+  </div>
+
+  <div class="note">
+    <strong>Do we still need to sign the cookie?</strong> No. The token is 256 bits of randomness that must exactly match a stored row, so it is unguessable on its own. That means we can drop <code>gorilla/sessions</code> and its signing secret entirely and set a plain <code>http.Cookie</code>. Fewer moving parts, and the session signing secret from the review simply ceases to exist.
+  </div>
+
+  <h2>Schema</h2>
+  <p>A new migration, <code>migrations/00002_create_sessions_table.sql</code> (the baseline <code>00001_init_schema.sql</code> is left untouched).</p>
+<pre><code>CREATE TABLE sessions (
+  id           UUID PRIMARY KEY,
+  token_hash   TEXT NOT NULL UNIQUE,          -- SHA-256 of the cookie token
+  user_id      UUID NOT NULL,
+  expires_at   TIMESTAMP NOT NULL,
+  created_at   TIMESTAMP NOT NULL,
+  last_used_at TIMESTAMP NOT NULL,
+  user_agent   TEXT,                          -- optional, for "list my sessions"
+  ip           TEXT,                          -- optional
+  CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_sessions_user_id ON sessions (user_id);
+CREATE INDEX idx_sessions_expires_at ON sessions (expires_at);</code></pre>
+  <div class="warn">
+    <strong>Deliberate divergence from the soft-delete convention.</strong> Every other table uses <code>deleted_at</code> for soft deletes. Sessions should be <em>hard</em> deleted: a revoked session must actually be gone, not merely flagged, or revocation is not real. So this table has no <code>deleted_at</code>, and logout / cleanup issue real <code>DELETE</code>s. Worth a one-line comment in the migration so the difference reads as intentional.
+  </div>
+
+  <h2>Code changes by layer</h2>
+  <p>Follows the existing structure: model, repository, service/helper, middleware, handlers, wiring.</p>
+  <table>
+    <thead><tr><th>Area</th><th>Change</th></tr></thead>
+    <tbody>
+      <tr><td><code>migrations/</code></td><td>New <code>00002_create_sessions_table.sql</code> with the schema above.</td></tr>
+      <tr><td><code>api/model/session/</code></td><td>New <code>Session</code> model (fields matching the table) plus a place for the <code>TableName()</code> if needed.</td></tr>
+      <tr><td><code>api/repositories/session/</code></td><td>New repository: <code>Create</code>, <code>GetActiveByTokenHash</code> (filters <code>expires_at &gt; now</code>), <code>Touch</code> (sliding expiry), <code>Delete</code>, <code>DeleteByUserID</code>, <code>DeleteExpired</code>, <code>ListByUserID</code>. Repository tests with go-sqlmock, matching the product repo test style.</td></tr>
+      <tr><td><code>util/session/</code> (or a small service)</td><td>Token helpers in one place: <code>NewToken()</code> using <code>crypto/rand</code> (32 bytes, base64url), and <code>HashToken(raw)</code> using <code>crypto/sha256</code>. Keeping the crypto in one file avoids it leaking into handlers.</td></tr>
+      <tr><td><code>api/middleware/auth.go</code></td><td><code>RequireAuth</code> takes the session repository instead of the cookie store. It reads the token cookie, hashes it, looks up the active session, loads <code>user_id</code> into context, and optionally calls <code>Touch</code> for sliding expiry. Good moment to also fix the context-key hygiene item (use an unexported key type instead of the bare string <code>"user_id"</code>).</td></tr>
+      <tr><td><code>api/routes/user/login.go</code></td><td>After <code>ValidateCredentials</code>: generate a token, create the session row, set a plain <code>http.Cookie</code> (HttpOnly, Secure, SameSite=Lax, Path=/, MaxAge) with the raw token. No more <code>gorilla/sessions</code>.</td></tr>
+      <tr><td><code>api/routes/user/logout.go</code></td><td>Delete the session by token hash, then clear the cookie (<code>MaxAge=-1</code>).</td></tr>
+      <tr><td><code>cmd/api/main.go</code>, <code>config/</code></td><td>Stop constructing the <code>CookieStore</code>; pass the DB-backed session dependency into the router/middleware. Remove <code>AUTH_SESSION_STORE_SECRET</code> from config and <code>.env</code> / <code>.env.example</code>. Keep <code>AUTH_SESSION_MAX_AGE_SECONDS</code> for the expiry.</td></tr>
+      <tr><td><code>go.mod</code></td><td><code>gorilla/sessions</code> and <code>gorilla/securecookie</code> drop out after <code>go mod tidy</code>.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>New capabilities this unlocks</h2>
+  <ul>
+    <li><span class="label">Logout everywhere:</span> <code>DeleteByUserID</code>, useful as its own endpoint or on password change.</li>
+    <li><span class="label">List active sessions:</span> <code>ListByUserID</code>, so a user can see their logged-in devices (this is why <code>user_agent</code> / <code>ip</code> are in the schema).</li>
+    <li><span class="label">Kill a stolen session:</span> delete a single row.</li>
+  </ul>
+  <p>These are optional endpoints; the core plan does not require them, but the schema is built so they are trivial to add later.</p>
+
+  <h2>Expiration and cleanup</h2>
+  <p>Two layers, both needed:</p>
+  <ul>
+    <li><span class="label">Lazy:</span> the lookup query filters <code>expires_at &gt; now()</code>, so an expired session is never honored even if the row still exists.</li>
+    <li><span class="label">Sweep:</span> a background goroutine on a ticker (say every 15 minutes) runs <code>DeleteExpired</code> so dead rows do not accumulate. Simple, no new infrastructure. Could later become a scheduled job if preferred.</li>
+  </ul>
+  <p>Sliding vs absolute expiry is a decision to make (see open questions). Sliding (extend on each request via <code>Touch</code>) matches the current behavior where the cookie is refreshed on every authenticated request.</p>
+
+  <h2>What this fixes from the security review</h2>
+  <table>
+    <thead><tr><th>Review finding</th><th>Effect</th></tr></thead>
+    <tbody>
+      <tr><td>#2 Forgeable session cookies</td><td>Resolved. The cookie is an opaque random token validated against the DB; there is no signed identity to forge and no signing key to leak.</td></tr>
+      <tr><td>#3 Cookie signed but not encrypted</td><td>Resolved. The cookie contains only a random token, no <code>user_id</code> or <code>username</code>, so there is nothing readable to expose.</td></tr>
+      <tr><td>#4 Cookie not HttpOnly / Secure</td><td>Fixed here. Flags are set correctly and unconditionally in the new cookie code.</td></tr>
+      <tr><td>#5 Committed secret</td><td>Partially helped. The session signing secret is removed entirely. The DB credential handling is still a separate task.</td></tr>
+      <tr><td>#9 Context key uses built-in string</td><td>Good opportunity to fix while rewriting the middleware.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Tradeoffs, honestly</h2>
+  <ul>
+    <li><span class="label">A DB read per authenticated request.</span> It is a single indexed lookup on <code>token_hash</code>, negligible at this scale, but the database is now on the auth hot path. Sliding expiry adds a small write per request; if that becomes noticeable, throttle the <code>Touch</code> (only extend when the session is past, say, half its life).</li>
+    <li><span class="label">The store is a new dependency.</span> If Postgres is down, auth is down. That was already effectively true for this app.</li>
+    <li><span class="label">More moving parts than a stateless cookie.</span> A table, a repository, a cleanup loop. The payoff is revocation and server-owned identity.</li>
+  </ul>
+
+  <h2>Phased implementation</h2>
+  <table>
+    <thead><tr><th>Phase</th><th>Work</th></tr></thead>
+    <tbody>
+      <tr><td><span class="pill">1</span></td><td>Migration + <code>Session</code> model + session repository, with go-sqlmock tests. No behavior change yet.</td></tr>
+      <tr><td><span class="pill">2</span></td><td>Token helpers (<code>NewToken</code>, <code>HashToken</code>) with a unit test.</td></tr>
+      <tr><td><span class="pill">3</span></td><td>Rewrite login and logout to create/delete session rows and set/clear the plain opaque cookie with correct flags.</td></tr>
+      <tr><td><span class="pill">4</span></td><td>Rewrite <code>RequireAuth</code> to look sessions up in the store; fix the context key type.</td></tr>
+      <tr><td><span class="pill">5</span></td><td>Remove <code>gorilla/sessions</code>, the <code>CookieStore</code> wiring, and <code>AUTH_SESSION_STORE_SECRET</code>; <code>go mod tidy</code>; update <code>.env.example</code>.</td></tr>
+      <tr><td><span class="pill">6</span></td><td>Background sweep of expired sessions.</td></tr>
+      <tr><td><span class="pill">7</span> <em>(optional)</em></td><td>Endpoints: logout-everywhere and list-active-sessions.</td></tr>
+      <tr><td><span class="pill">8</span></td><td>Extend <code>scripts/verify.sh</code>: after logout, assert the old cookie now returns 401, and that a fresh login still works. This proves revocation end to end.</td></tr>
+    </tbody>
+  </table>
+  <p>Phases 1 and 2 are self-contained and mergeable on their own. Phases 3 to 5 are one logical switchover and probably want to land together so the app is never half-migrated.</p>
+
+  <h2>Open questions to decide before building</h2>
+  <ul>
+    <li><span class="label">Sliding or absolute expiry?</span> Sliding matches today's refresh-on-each-request behavior; absolute is simpler and more predictable. Leaning sliding, with throttled writes.</li>
+    <li><span class="label">SameSite value?</span> <code>Lax</code> is a good default for a same-origin app. <code>Strict</code> if there is never any cross-site navigation into an authenticated page; <code>None</code> only if a separate front-end origin needs it (and then <code>Secure</code> is mandatory).</li>
+    <li><span class="label">One session per login, always?</span> Yes to start. Concurrent logins each get their own row, which is the point of "list my sessions."</li>
+    <li><span class="label">Store <code>ip</code> / <code>user_agent</code> now or later?</span> Cheap to add columns now even if the listing endpoint comes later; migrations to add columns afterward are more friction.</li>
+  </ul>
+</div>
+</body>
+</html>
