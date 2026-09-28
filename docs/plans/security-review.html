@@ -58,7 +58,7 @@
 
   <div class="status-box">
     <strong>Remediation status</strong> (updated 2026-09-28)
-    <p style="margin: 8px 0 0;">2 of 9 fixed, 4 planned, 3 open. <span class="st st-fixed">Fixed</span> #1 (password hashing, PR #8) and #6 (login timing: constant-time comparison in PR #8, username-enumeration gap closed in PR #11). <span class="st st-planned">Planned</span> #2, #3, #4, and #9 are all covered by the merged Postgres-backed sessions design (<code>docs/postgres-sessions-plan.html</code>), not yet implemented. <span class="st st-open">Open</span> #5, #7, and #8 are untouched. Per-finding status is marked below.</p>
+    <p style="margin: 8px 0 0;">2 of 9 fixed, 4 planned, 3 open. <span class="st st-fixed">Fixed</span> #1 (password hashing, PR #8) and #6 (login timing: constant-time comparison in PR #8, username-enumeration gap closed in PR #11). <span class="st st-planned">Planned</span> #2, #3, #4, and #9 are all covered by the merged Postgres-backed sessions design (<code>docs/plans/postgres-sessions.html</code>), not yet implemented. <span class="st st-open">Open</span> #5, #7, and #8 are untouched. Per-finding status is marked below.</p>
   </div>
 
   <div class="note">
@@ -109,7 +109,7 @@ curl -s -X POST localhost:8080/v1/users \
   <!-- 2 -->
   <div class="finding">
     <div class="finding-head"><h2>2. Session cookies are forgeable</h2><span class="sev critical">Critical</span><span class="st st-planned">Planned</span></div>
-    <div class="status-box">Planned. The Postgres-backed sessions design (<code>docs/postgres-sessions-plan.html</code>) replaces the signed identity cookie with an opaque server-side token, which removes the signing key entirely and eliminates forgery. Not implemented yet, so the exploit below still works.</div>
+    <div class="status-box">Planned. The Postgres-backed sessions design (<code>docs/plans/postgres-sessions.html</code>) replaces the signed identity cookie with an opaque server-side token, which removes the signing key entirely and eliminates forgery. Not implemented yet, so the exploit below still works.</div>
     <p><span class="label">Where:</span> <code>cmd/api/main.go</code> creates the store with <code>sessions.NewCookieStore([]byte(conf.StoreSessions.AuthSecret))</code>, and the secret lives in the committed <code>.env</code> as <code>AUTH_SESSION_STORE_SECRET=secretsecret</code>.</p>
     <p><span class="label">Why it matters:</span> the session cookie is a value signed with an HMAC keyed by that secret. The server trusts any cookie whose signature checks out. Because the key is (a) trivially weak and (b) published in your git history, anyone can mint a cookie that says <code>user_id = &lt;any victim&gt;</code> and the server will accept them as that user. This is a complete authentication bypass and full account takeover, with no password needed.</p>
     <h3>Exploit &mdash; forge a session for the victim</h3>
