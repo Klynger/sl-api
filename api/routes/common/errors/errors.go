@@ -45,6 +45,8 @@ const (
 	CodeAlphaSpace       = "ALPHA_SPACE"
 	CodeInvalidDate      = "INVALID_DATE"
 	CodeValidationFailed = "VALIDATION_FAILED"
+
+	CodeRateLimited = "RATE_LIMITED"
 )
 
 type ErrorItem struct {
@@ -97,6 +99,10 @@ func Forbidden(w http.ResponseWriter, errors ...ErrorItem) {
 
 func Conflict(w http.ResponseWriter, errors ...ErrorItem) {
 	writeJSON(w, http.StatusConflict, errors...)
+}
+
+func TooManyRequests(w http.ResponseWriter, errors ...ErrorItem) {
+	writeJSON(w, http.StatusTooManyRequests, errors...)
 }
 
 // ClassifyDBError maps well-known Postgres constraint violations to specific

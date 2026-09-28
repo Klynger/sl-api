@@ -105,6 +105,20 @@ expect_status 201 "create group" \
 expect_status 422 "validation error on empty group name" \
   -b "$cookie_jar" -X POST "$base/v1/groups" -d '{"name":""}'
 
+# Rapid login attempts must eventually be rate limited. Run last so earlier
+# login assertions stay under the limit.
+got_429=""
+for _ in $(seq 1 40); do
+  code=$(curl -s -o /dev/null -w '%{http_code}' \
+    -X POST "$base/v1/users/login" -d '{"username":"ghost","password":"x"}')
+  if [ "$code" = "429" ]; then
+    got_429=1
+    break
+  fi
+done
+[ -n "$got_429" ] || fail "login was not rate limited after 40 rapid attempts"
+echo "ok: login rate limited (429)"
+
 rm -f "$cookie_jar"
 echo
 echo "All checks passed."

@@ -29,7 +29,7 @@ func New(db *gorm.DB, validator *validator.Validate, authSessionStore *sessions.
 
 		// Public routes
 		r.Post("/users", userAPI.Register)
-		r.Post("/users/login", userAPI.Login)
+		r.With(middleware.LoginRateLimiter()).Post("/users/login", userAPI.Login)
 
 		r.Group(func(authedRouter chi.Router) {
 			authedRouter.Use(middleware.RequireAuth(authSessionStore, authMaxAge))
