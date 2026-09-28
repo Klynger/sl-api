@@ -58,7 +58,7 @@
 
   <div class="status-box">
     <strong>Remediation status</strong> (updated 2026-09-28)
-    <p style="margin: 8px 0 0;">2 of 9 fixed, 4 planned, 3 open. <span class="st st-fixed">Fixed</span> #1 (password hashing, PR #8) and #6 (login timing: constant-time comparison in PR #8, username-enumeration gap closed in PR #11). <span class="st st-planned">Planned</span> #2, #3, #4, and #9 are all covered by the merged Postgres-backed sessions design (<code>docs/plans/postgres-sessions.html</code>), not yet implemented. <span class="st st-open">Open</span> #5, #7, and #8 are untouched. Per-finding status is marked below.</p>
+    <p style="margin: 8px 0 0;">3 of 9 fixed, 4 planned, 2 open. <span class="st st-fixed">Fixed</span> #1 (password hashing, PR #8), #6 (login timing: constant-time comparison in PR #8, username-enumeration gap closed in PR #11), and #7 (per-IP login rate limiting, PR #13). <span class="st st-planned">Planned</span> #2, #3, #4, and #9 are all covered by the merged Postgres-backed sessions design (<code>docs/plans/postgres-sessions.html</code>), not yet implemented. <span class="st st-open">Open</span> #5 and #8 are untouched. Per-finding status is marked below.</p>
   </div>
 
   <div class="note">
@@ -87,7 +87,7 @@ curl -s -X POST localhost:8080/v1/users \
       <tr><td>4</td><td>Session cookie not HttpOnly / not Secure in debug mode</td><td><span class="sev high">High</span></td><td><span class="st st-planned">Planned</span></td><td>Session hardening</td></tr>
       <tr><td>5</td><td>Secrets committed to the repository (<code>.env</code>)</td><td><span class="sev high">High</span></td><td><span class="st st-open">Open</span></td><td>Secret management</td></tr>
       <tr><td>6</td><td>Non-constant-time credential check + login timing side channel</td><td><span class="sev medium">Medium</span></td><td><span class="st st-fixed">Fixed</span></td><td>Side channel</td></tr>
-      <tr><td>7</td><td>No rate limiting / brute-force protection on login</td><td><span class="sev medium">Medium</span></td><td><span class="st st-open">Open</span></td><td>Broken authentication</td></tr>
+      <tr><td>7</td><td>No rate limiting / brute-force protection on login</td><td><span class="sev medium">Medium</span></td><td><span class="st st-fixed">Fixed</span></td><td>Broken authentication</td></tr>
       <tr><td>8</td><td>IDOR: any authenticated user can read any user or product</td><td><span class="sev low">Low</span></td><td><span class="st st-open">Open</span></td><td>Broken access control</td></tr>
       <tr><td>9</td><td>Context key uses a built-in <code>string</code> type</td><td><span class="sev low">Low</span></td><td><span class="st st-planned">Planned</span></td><td>Hygiene / collision</td></tr>
     </tbody>
@@ -218,8 +218,8 @@ done | sort -n | awk '{a[NR]=$1} END{print "median missing:   ", a[int(NR/2)]}'<
 
   <!-- 7 -->
   <div class="finding">
-    <div class="finding-head"><h2>7. No rate limiting or brute-force protection on login</h2><span class="sev medium">Medium</span><span class="st st-open">Open</span></div>
-    <div class="status-box">Open. No throttling or lockout added yet. The exploit below still works.</div>
+    <div class="finding-head"><h2>7. No rate limiting or brute-force protection on login</h2><span class="sev medium">Medium</span><span class="st st-fixed">Fixed</span></div>
+    <div class="status-box">Fixed in PR #13. The login route now runs a per-IP rate limiter (go-chi/httprate, 10 attempts per minute) that returns a 429 in the standard error shape and sheds floods before they reach the bcrypt path. Counters are in memory (fine for a single instance). Per-account lockout for distributed brute force and limiting at other layers are follow-ups tracked in <code>docs/plans/rate-limiting.html</code>. The burst below now returns 429s instead of unlimited 401s.</div>
     <p><span class="label">Where:</span> the router mounts <code>/v1/users/login</code> with no throttling, lockout, or backoff middleware.</p>
     <p><span class="label">Why it matters:</span> combined with plaintext passwords (#1) and the timing oracle (#6), an attacker can guess passwords as fast as the server answers. There is nothing to slow them down.</p>
     <h3>Exploit &mdash; unthrottled password guessing</h3>
@@ -264,7 +264,7 @@ curl -s -b mal.txt "localhost:8080/v1/users/$VID"</code></pre>
   </div>
 
   <h2>Suggested order to address them</h2>
-  <p>Password hashing (#1) and the login timing side channel (#6) are done. The next highest-impact step is implementing the session rewrite, which closes #2, #3, #4, and #9 together since they all live in the same store and cookie setup. Rotating and removing the committed secret (#5) should happen alongside it, and note the session rewrite removes the session secret but not the DB credentials. The rate-limit (#7) and IDOR (#8) items are meaningful follow-ups once the session work lands.</p>
+  <p>Password hashing (#1), the login timing side channel (#6), and login rate limiting (#7) are done. The next highest-impact step is implementing the session rewrite, which closes #2, #3, #4, and #9 together since they all live in the same store and cookie setup. Rotating and removing the committed secret (#5) should happen alongside it, and note the session rewrite removes the session secret but not the DB credentials. The IDOR item (#8) is a meaningful follow-up once the session work lands.</p>
 </div>
 </body>
 </html>
