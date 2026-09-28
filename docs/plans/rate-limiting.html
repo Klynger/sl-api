@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rate Limiting - Plan</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    line-height: 1.65; color: #1f2933; background: #f4f5f7; padding: 24px;
+  }
+  .container { max-width: 1000px; margin: 0 auto; background: #fff; padding: 40px 48px;
+    box-shadow: 0 2px 14px rgba(0,0,0,0.08); border-radius: 10px; }
+  h1 { font-size: 2.1em; color: #1a2733; border-bottom: 3px solid #2563eb; padding-bottom: 14px; margin-bottom: 8px; }
+  .subtitle { color: #616e7c; margin-bottom: 28px; }
+  h2 { font-size: 1.5em; color: #1a2733; margin: 40px 0 14px; padding-bottom: 6px; border-bottom: 1px solid #e4e7eb; }
+  h3 { font-size: 1.15em; color: #323f4b; margin: 22px 0 8px; }
+  p { margin-bottom: 12px; }
+  ul, ol { margin: 8px 0 14px 24px; }
+  li { margin-bottom: 6px; }
+  code { background: #eef1f4; padding: 2px 6px; border-radius: 4px;
+    font-family: 'SF Mono', 'Courier New', monospace; font-size: 0.88em; color: #1e40af; }
+  pre { background: #1f2933; color: #e4e7eb; padding: 16px 18px; border-radius: 8px;
+    overflow-x: auto; margin: 12px 0 16px; font-size: 0.85em; line-height: 1.5; }
+  pre code { background: none; color: inherit; padding: 0; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 0.95em; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid #e4e7eb; vertical-align: top; }
+  th { background: #f4f5f7; font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.03em; color: #52606d; }
+  .note { background: #eef2ff; border-left: 4px solid #2563eb; padding: 12px 16px; border-radius: 4px; margin: 14px 0; }
+  .warn { background: #fff8e6; border-left: 4px solid #cb6e17; padding: 12px 16px; border-radius: 4px; margin: 14px 0; }
+  .label { font-weight: 600; color: #52606d; }
+  .pill { display: inline-block; font-size: 0.72em; font-weight: 700; letter-spacing: 0.03em;
+    text-transform: uppercase; padding: 2px 9px; border-radius: 20px; color: #fff; background: #2563eb; }
+  .st { font-size: 0.72em; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+    padding: 3px 10px; border-radius: 20px; color: #fff; white-space: nowrap; }
+  .st-progress { background: #cb6e17; }
+  .st-planned { background: #2563eb; }
+  .st-learning { background: #647acb; }
+  .status-box { background: #f0f4f8; border: 1px solid #d9e2ec; border-left: 4px solid #cb6e17;
+    padding: 14px 18px; border-radius: 6px; margin: 0 0 28px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Plan: Rate Limiting and Brute-Force Protection</h1>
+  <p class="subtitle">Closing security finding #7, and using it as a vehicle to implement the same protection at several abstraction layers, to understand what each layer is good at.</p>
+
+  <div class="status-box">
+    <strong>Status</strong> <span class="st st-progress">App layer in progress</span>
+    <p style="margin: 8px 0 0;">The application-layer defense (phase 1) is being implemented now in a separate PR. Every layer below it is intentionally scoped as a later learning exercise: re-solve the same problem at a different layer and compare. This is deliberate over-engineering for the sake of understanding infra and backend tradeoffs, not something a shopping-list app needs in production.</p>
+  </div>
+
+  <h2>The core idea: two different problems</h2>
+  <p>"Rate limiting" is really two problems that belong at different layers, and conflating them is what makes people reach for the wrong tool.</p>
+  <ul>
+    <li><span class="label">Generic volumetric limiting</span> ("too many requests from this source"). Infrastructure's job. It does not need to understand the app; it counts requests per IP or route and sheds the excess.</li>
+    <li><span class="label">Auth-specific brute-force protection</span> ("too many <em>failed logins</em> for this account"). Only the application can do this, because only the app knows the semantic outcome: that a request was a login and that it failed. A gateway sees <code>POST /v1/users/login -&gt; 401</code>; it does not know that is the 200th failed attempt on the account <code>admin</code>.</li>
+  </ul>
+  <p>Finding #7 is fundamentally the second problem, but a complete defense uses both. They are complementary, not either/or.</p>
+
+  <div class="warn">
+    <strong>Why this matters extra here.</strong> The bcrypt work from findings #1 and #6 spends about 60ms of CPU per login attempt <em>by design</em>. That cost is now a weapon: an attacker flooding the login endpoint can exhaust CPU cheaply. So we specifically want a cheap early reject <em>in front of</em> the expensive bcrypt path, which is exactly what a rate limiter provides.
+  </div>
+
+  <h2>The layers, and what each is good at</h2>
+  <table>
+    <thead><tr><th>Layer</th><th>Examples</th><th>Good at</th><th>Blind to</th></tr></thead>
+    <tbody>
+      <tr><td>Edge / CDN / WAF</td><td>Cloudflare, AWS WAF</td><td>Absorbing volumetric floods and DDoS before they reach your infra; bot detection.</td><td>Per-account semantics; anything app-specific.</td></tr>
+      <tr><td>API gateway / reverse proxy</td><td>nginx, Envoy, Kong, Traefik</td><td>Per-IP and per-route limits; a natural chokepoint in front of the app.</td><td>Whether a login succeeded or failed.</td></tr>
+      <tr><td>Service mesh</td><td>Istio, Linkerd</td><td>Service-to-service (east-west) traffic control inside a cluster: mTLS, retries, traffic shifting.</td><td>User-facing auth abuse is not its purpose; it still only sees requests, not outcomes.</td></tr>
+      <tr><td>App middleware</td><td>chi middleware, httprate</td><td>Per-IP / per-route limits with app context; cheap reject before bcrypt.</td><td>Coordinating across many instances without a shared store.</td></tr>
+      <tr><td>App logic</td><td>account lockout, backoff, CAPTCHA</td><td>The only place that can act on "N failed logins for account X".</td><td>Shedding raw volume cheaply; floods still reach the app.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <strong>On the service mesh instinct.</strong> A mesh <em>can</em> rate-limit at its ingress (it is Envoy underneath), but using a whole mesh to throttle a login endpoint is like installing a factory robot to open a jar. Its real job is east-west traffic, and it still cannot see that a login failed. It is included below as an experiment to feel that mismatch firsthand, not as a recommended fix.
+  </div>
+
+  <h2>Why no single layer is enough</h2>
+  <ul>
+    <li><span class="label">Infra alone</span> stops volumetric attacks but misses "low and slow" distributed brute force: a botnet doing one attempt per IP across thousands of IPs stays under any per-IP limit while hammering a single account. Only per-account tracking in the app catches that.</li>
+    <li><span class="label">App alone</span> means every abusive request still reaches the app and burns resources (see the bcrypt amplification above). Volume should be shed earlier.</li>
+  </ul>
+  <p>Hence: infra for volume, app for identity-aware abuse. For finding #7 specifically, the piece that must live in our code is the application layer, which is why it goes first.</p>
+
+  <h2>Phase 1: application layer (implemented now)</h2>
+  <p>Scope of the accompanying implementation PR:</p>
+  <ul>
+    <li>Per-IP rate limiting on the login route using <code>github.com/go-chi/httprate</code> as chi middleware, sitting in front of the bcrypt path.</li>
+    <li>A 429 response in the app's standard error shape (<code>{"errors": [{code, detail}]}</code>), via a new <code>CodeRateLimited</code> and a <code>TooManyRequests</code> helper in the errors package.</li>
+    <li>Counters kept in memory to start (see the storage note). Fine for a single instance.</li>
+  </ul>
+  <div class="warn">
+    <strong>Proxy caveat baked in from the start.</strong> Keying by IP uses the connection's remote address, which is correct when nothing sits in front. The moment a reverse proxy or load balancer is added (phase 4+), the remote address becomes the proxy, so keying must switch to a trusted <code>X-Forwarded-For</code> / <code>X-Real-IP</code> value. Trusting those headers blindly is itself a spoofing risk, so it must be paired with a trusted-proxy configuration. This is called out here so the later infra phases handle it deliberately.
+  </div>
+
+  <h2>Where the counters live</h2>
+  <p>Any limiter needs to store counts somewhere. Same tradeoff as the sessions work (<code>docs/plans/postgres-sessions.html</code>):</p>
+  <ul>
+    <li><span class="label">In-memory</span> (per process): trivial, zero infra, but resets on restart and does not coordinate across instances. Correct for a single-instance app, which is where we are.</li>
+    <li><span class="label">Shared store</span> (Redis or Postgres): needed once more than one instance runs, so they all see the same counts. Do not add it before running multiple instances.</li>
+  </ul>
+
+  <h2>Phased plan</h2>
+  <table>
+    <thead><tr><th>Phase</th><th>Layer</th><th>Status</th><th>Work</th></tr></thead>
+    <tbody>
+      <tr><td><span class="pill">1</span></td><td>App middleware</td><td><span class="st st-progress">In progress</span></td><td>Per-IP rate limiting on login via httprate; 429 in the standard error shape; in-memory counters.</td></tr>
+      <tr><td><span class="pill">2</span></td><td>App logic</td><td><span class="st st-planned">Planned</span></td><td>Per-account failed-attempt tracking with lockout or exponential backoff. Catches distributed brute force that per-IP limits miss. Optionally CAPTCHA after N failures.</td></tr>
+      <tr><td><span class="pill">3</span></td><td>App state</td><td><span class="st st-planned">Planned</span></td><td>Move counters to a shared store (Postgres or Redis) so limits hold across multiple instances. Only once the app runs more than one instance.</td></tr>
+      <tr><td><span class="pill">4</span></td><td>Reverse proxy</td><td><span class="st st-learning">Learning</span></td><td>Put nginx or Envoy in front and configure per-IP limiting there. Compare with the app-layer version; wire up real-IP keying end to end (ties into the proxy caveat above).</td></tr>
+      <tr><td><span class="pill">5</span></td><td>API gateway</td><td><span class="st st-learning">Learning</span></td><td>Introduce a gateway (Kong or Traefik) with a rate-limit plugin. Understand what a gateway adds over a bare reverse proxy.</td></tr>
+      <tr><td><span class="pill">6</span></td><td>Edge / WAF</td><td><span class="st st-learning">Learning</span></td><td>Front the whole thing with Cloudflare (or a cloud WAF) and express the same rate rules plus bot rules at the edge. See what only the edge can do (volumetric absorption).</td></tr>
+      <tr><td><span class="pill">7</span></td><td>Service mesh</td><td><span class="st st-learning">Experiment</span></td><td>Stand up Istio/Envoy ingress rate limiting in a cluster. Goal is to feel why a mesh is the wrong primary tool for this, not to keep it.</td></tr>
+    </tbody>
+  </table>
+  <p>Phases 1 to 3 are real hardening the app should keep. Phases 4 to 7 are the deliberate over-engineering: each one re-solves the same problem at a different layer purely to build intuition about the tradeoffs, and can be torn down afterward.</p>
+
+  <h2>Open questions to decide per phase</h2>
+  <ul>
+    <li><span class="label">Limits and window:</span> what request-per-window is right for login? Start conservative (e.g. a few per minute per IP) and tune against the smoke test.</li>
+    <li><span class="label">Lockout policy (phase 2):</span> hard lockout after N failures, or exponential backoff? Backoff is friendlier to legitimate users who mistype; lockout is simpler. How is a lockout cleared (time, or an out-of-band reset)?</li>
+    <li><span class="label">Response shape:</span> should a 429 include a <code>Retry-After</code> header? Useful for clients, and cheap to add.</li>
+    <li><span class="label">Which routes beyond login?</span> Registration (account-creation spam) and, later, invite creation are candidates. Kept out of phase 1 to stay focused.</li>
+  </ul>
+</div>
+</body>
+</html>
