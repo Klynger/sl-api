@@ -94,7 +94,57 @@ erDiagram
 - **users and groups** form a many-to-many relationship through `group_members`, which also carries the member's roles (`owner`, `member`) as a Postgres text array. A user can join a group only once (`UNIQUE (user_id, group_id)`).
 - **invites** connect a group to two users: the sender (`sender_id`) and the invited user (`invited_user_id`). A user can have only one pending invite per group (`UNIQUE (group_id, invited_user_id)`). Accepting an invite creates the `group_members` row and deletes the invite in one transaction.
 - All foreign keys cascade on delete, though in practice rows are soft deleted rather than removed.
-- **products** stand alone: they have no foreign key to users or groups yet, so every product is currently global rather than belonging to a shopping list, group, or user. Connecting products to groups is the most likely next schema change.
+- **products** stand alone: they have no foreign key to users or groups, so every product is a shared, global catalog entry. The planned lists and items (below) connect products to groups without changing that: products stay a generic catalog (Milk, Eggs), and the group-specific data lives in the new tables.
+
+## Planned: shopping lists and items
+
+Proposed, not yet implemented, documented here for review. This is the next feature: give groups something to do by letting them own shopping lists made of items, where each item points at a product from the shared catalog.
+
+Two new tables, following the existing conventions (UUID primary keys, timestamps, soft deletes):
+
+- **lists**: a shopping list that belongs to exactly one group. A group can have many lists (for example "Weekly groceries" and "Party supplies"). Fields: `group_id` (FK to groups), `name`, and `created_by` (FK to users, who made it).
+- **list_items**: a single line on a list. It belongs to exactly one list and references one product from the shared catalog. Fields: `list_id` (FK to lists), `product_id` (FK to products), `quantity` (default 1), `unit` (optional, such as "kg" or "L"), `is_checked` (default false, so members can tick items off while shopping), `added_by` (FK to users), and an optional `note`.
+
+```mermaid
+erDiagram
+    groups ||--o{ lists : "owns"
+    lists ||--o{ list_items : "contains"
+    products ||--o{ list_items : "referenced by"
+    users ||--o{ lists : "created (created_by)"
+    users ||--o{ list_items : "added (added_by)"
+
+    lists {
+        uuid id PK
+        uuid group_id FK
+        uuid created_by FK
+        varchar name
+    }
+
+    list_items {
+        uuid id PK
+        uuid list_id FK
+        uuid product_id FK
+        uuid added_by FK
+        int quantity
+        varchar unit
+        boolean is_checked
+        text note
+    }
+
+    products {
+        uuid id PK
+        text product_name
+        text description
+    }
+```
+
+### Design decisions filled in (please review)
+
+- **Products stay a shared catalog.** They are not scoped to a group; any group's items can reference any product. This keeps the catalog generic and reusable. Open question: do we ever want group-private or custom products? If so, that is a later addition, not part of this step.
+- **One line per product per list.** A `UNIQUE (list_id, product_id)` constraint means a product appears at most once on a given list. Adding a product that is already there should bump its `quantity` rather than create a duplicate row (idempotent add). Open question: is that the behavior you want, or should duplicates be allowed?
+- **Delete behavior.** Deleting a group cascades to its lists, and deleting a list cascades to its items, matching the existing `ON DELETE CASCADE` convention. For the product reference the cleaner choice is `ON DELETE RESTRICT` (do not allow hard-deleting a product that is still on a list), since products are a shared catalog and are normally soft deleted anyway. Open question: RESTRICT or CASCADE here?
+- **Checked state is a boolean.** `is_checked` covers ticking items off while shopping. If we later need more states (for example pending, purchased, out of stock) this becomes a status enum, but a boolean is enough to start.
+- **Access control.** Only members of the owning group should be able to read or modify that group's lists and items. This depends on the group-membership checks that the broader access-control work will introduce, and would be enforced in the service layer the same way invites already check membership.
 
 ## Testing
 
