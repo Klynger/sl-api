@@ -34,7 +34,9 @@ func (a *API) Login(w http.ResponseWriter, r *http.Request) {
 	userCredentials, err := a.repository.ReadByUsername(form.Username)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			// TODO: Do something to avoid timing attacks
+			// Spend comparable time to a real password check so the response
+			// timing does not reveal whether the username exists.
+			userModel.SpendCredentialTime(form.Password)
 			errorsCommon.Unauthorized(w, errorsCommon.NewError(errorsCommon.CodeInvalidCredentials, "invalid username or password"))
 			return
 		}

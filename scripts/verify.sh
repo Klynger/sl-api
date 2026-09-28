@@ -90,6 +90,8 @@ expect_status 409 "duplicate username rejected" \
   -X POST "$base/v1/users" -d "$user"
 expect_status 401 "wrong password rejected" \
   -X POST "$base/v1/users/login" -d '{"username":"ana","password":"wrong"}'
+expect_status 401 "unknown username rejected" \
+  -X POST "$base/v1/users/login" -d '{"username":"ghost","password":"wrong"}'
 expect_status 200 "login" \
   -c "$cookie_jar" -X POST "$base/v1/users/login" -d '{"username":"ana","password":"secret123"}'
 expect_status 401 "auth required without session" \
