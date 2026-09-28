@@ -47,6 +47,14 @@ func (u *UserCredentials) ValidateCredentials(form *LoginForm) bool {
 	return bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(form.Password)) == nil
 }
 
+// SpendCredentialTime performs a throwaway bcrypt comparison against a fixed
+// decoy hash. Login calls it when the username does not exist so the response
+// takes about as long as a real password check, preventing an attacker from
+// telling existing usernames from missing ones by timing the response.
+func SpendCredentialTime(password string) {
+	_ = bcrypt.CompareHashAndPassword(decoyPasswordHash, []byte(password))
+}
+
 type DTO struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
@@ -84,4 +92,20 @@ func (f *Form) ToModel() (*User, error) {
 		Username: f.Username,
 		Password: string(hashed),
 	}, nil
+}
+
+// decoyPasswordHash is a bcrypt hash of a fixed throwaway password, generated
+// once at startup at the same cost as real hashes so SpendCredentialTime takes
+// the same time a genuine comparison would.
+var decoyPasswordHash = newDecoyPasswordHash()
+
+func newDecoyPasswordHash() []byte {
+	hash, err := bcrypt.GenerateFromPassword([]byte("decoy-password-for-timing"), bcrypt.DefaultCost)
+	if err != nil {
+		// Only fails on a broken bcrypt configuration, which would break every
+		// real registration too, so failing fast at startup is correct.
+		panic(err)
+	}
+
+	return hash
 }
