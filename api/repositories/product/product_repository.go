@@ -46,7 +46,7 @@ func (r *ProductRepository) Read(id uuid.UUID) (*productModel.Product, error) {
 
 func (r *ProductRepository) Update(product *productModel.Product) (int64, error) {
 	result := r.db.Model(&productModel.Product{}).
-		Select("Name", "Description", "UpdatedAt").
+		Select("Name", "Description", "PredefinedUnit", "UpdatedAt").
 		Where("id = ?", product.ID).
 		Updates(product)
 
