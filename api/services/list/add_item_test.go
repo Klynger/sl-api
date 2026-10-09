@@ -17,15 +17,24 @@ func listRow(listID, groupID uuid.UUID) *sqlmock.Rows {
 	return sqlmock.NewRows([]string{"id", "group_id"}).AddRow(listID, groupID)
 }
 
+func productRow(productID uuid.UUID) *sqlmock.Rows {
+	return sqlmock.NewRows([]string{"id"}).AddRow(productID)
+}
+
+// AddItem reads the list and product concurrently, so the queries reach the
+// mock in a nondeterministic order. These tests disable ordered matching and
+// expect both reads on every path, since both goroutines always run.
+
 func TestAddItem_ListNotFound(t *testing.T) {
 	t.Parallel()
 
 	db, mock, err := mockDB.NewMockDB()
 	testUtil.NoError(t, err)
+	mock.MatchExpectationsInOrder(false)
 	svc := listService.New(db)
 
-	mock.ExpectQuery(`^SELECT .* FROM "lists"`).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "group_id"})) // no rows
+	mock.ExpectQuery(`^SELECT .* FROM "lists"`).WillReturnRows(sqlmock.NewRows([]string{"id", "group_id"})) // no rows
+	mock.ExpectQuery(`^SELECT .* FROM "products"`).WillReturnRows(productRow(uuid.New()))
 
 	_, err = svc.AddItem(ctxWithUser(uuid.New()), listService.AddItemInput{ListID: uuid.New(), ProductID: uuid.New()})
 	if !errors.Is(err, listService.ErrListNotFound) {
@@ -38,10 +47,12 @@ func TestAddItem_NotAMember(t *testing.T) {
 
 	db, mock, err := mockDB.NewMockDB()
 	testUtil.NoError(t, err)
+	mock.MatchExpectationsInOrder(false)
 	svc := listService.New(db)
 	listID, groupID := uuid.New(), uuid.New()
 
 	mock.ExpectQuery(`^SELECT .* FROM "lists"`).WillReturnRows(listRow(listID, groupID))
+	mock.ExpectQuery(`^SELECT .* FROM "products"`).WillReturnRows(productRow(uuid.New()))
 	mock.ExpectQuery(`^SELECT count\(\*\) FROM "group_members"`).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 
@@ -56,14 +67,14 @@ func TestAddItem_ProductNotFound(t *testing.T) {
 
 	db, mock, err := mockDB.NewMockDB()
 	testUtil.NoError(t, err)
+	mock.MatchExpectationsInOrder(false)
 	svc := listService.New(db)
 	listID, groupID := uuid.New(), uuid.New()
 
 	mock.ExpectQuery(`^SELECT .* FROM "lists"`).WillReturnRows(listRow(listID, groupID))
+	mock.ExpectQuery(`^SELECT .* FROM "products"`).WillReturnRows(sqlmock.NewRows([]string{"id"})) // no rows
 	mock.ExpectQuery(`^SELECT count\(\*\) FROM "group_members"`).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-	mock.ExpectQuery(`^SELECT .* FROM "products"`).
-		WillReturnRows(sqlmock.NewRows([]string{"id"})) // no rows
 
 	_, err = svc.AddItem(ctxWithUser(uuid.New()), listService.AddItemInput{ListID: listID, ProductID: uuid.New()})
 	if !errors.Is(err, listService.ErrProductNotFound) {
@@ -76,17 +87,16 @@ func TestAddItem_AlreadyOnList(t *testing.T) {
 
 	db, mock, err := mockDB.NewMockDB()
 	testUtil.NoError(t, err)
+	mock.MatchExpectationsInOrder(false)
 	svc := listService.New(db)
 	listID, groupID, productID := uuid.New(), uuid.New(), uuid.New()
 
 	mock.ExpectQuery(`^SELECT .* FROM "lists"`).WillReturnRows(listRow(listID, groupID))
+	mock.ExpectQuery(`^SELECT .* FROM "products"`).WillReturnRows(productRow(productID))
 	mock.ExpectQuery(`^SELECT count\(\*\) FROM "group_members"`).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-	mock.ExpectQuery(`^SELECT .* FROM "products"`).
-		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(productID))
 	mock.ExpectBegin()
-	mock.ExpectExec(`^INSERT INTO "list_items"`).
-		WillReturnError(&pgconn.PgError{Code: "23505"})
+	mock.ExpectExec(`^INSERT INTO "list_items"`).WillReturnError(&pgconn.PgError{Code: "23505"})
 	mock.ExpectRollback()
 
 	_, err = svc.AddItem(ctxWithUser(uuid.New()), listService.AddItemInput{ListID: listID, ProductID: productID})
@@ -100,14 +110,14 @@ func TestAddItem_Success(t *testing.T) {
 
 	db, mock, err := mockDB.NewMockDB()
 	testUtil.NoError(t, err)
+	mock.MatchExpectationsInOrder(false)
 	svc := listService.New(db)
 	listID, groupID, productID := uuid.New(), uuid.New(), uuid.New()
 
 	mock.ExpectQuery(`^SELECT .* FROM "lists"`).WillReturnRows(listRow(listID, groupID))
+	mock.ExpectQuery(`^SELECT .* FROM "products"`).WillReturnRows(productRow(productID))
 	mock.ExpectQuery(`^SELECT count\(\*\) FROM "group_members"`).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-	mock.ExpectQuery(`^SELECT .* FROM "products"`).
-		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(productID))
 	mock.ExpectBegin()
 	mock.ExpectExec(`^INSERT INTO "list_items"`).WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()

@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	"sl-api/api/middleware"
+	listModel "sl-api/api/model/list"
 	listItemModel "sl-api/api/model/list_item"
+	productModel "sl-api/api/model/product"
 	listRepository "sl-api/api/repositories/list"
 	listItemRepository "sl-api/api/repositories/list_item"
 	productRepository "sl-api/api/repositories/product"
@@ -38,25 +41,44 @@ func (s *ListService) AddItem(ctx context.Context, input AddItemInput) (*AddItem
 	}
 
 	listRepo := listRepository.New(s.db)
-	list, err := listRepo.Read(input.ListID)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+	productRepo := productRepository.New(s.db)
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	var list *listModel.List
+	var listErr error
+	var product *productModel.Product
+	var productErr error
+
+	go func() {
+		defer wg.Done()
+		list, listErr = listRepo.Read(input.ListID)
+	}()
+
+	go func() {
+		defer wg.Done()
+		product, productErr = productRepo.Read(input.ProductID)
+	}()
+
+	wg.Wait()
+
+	if listErr != nil {
+		if errors.Is(listErr, gorm.ErrRecordNotFound) {
 			return nil, ErrListNotFound
 		}
-		return nil, fmt.Errorf("failed to read list: %w", err)
+		return nil, fmt.Errorf("failed to read list: %w", listErr)
 	}
 
 	if err := s.ensureGroupMember(userID, list.GroupID); err != nil {
 		return nil, err
 	}
 
-	productRepo := productRepository.New(s.db)
-	product, err := productRepo.Read(input.ProductID)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+	if productErr != nil {
+		if errors.Is(productErr, gorm.ErrRecordNotFound) {
 			return nil, ErrProductNotFound
 		}
-		return nil, fmt.Errorf("failed to read product: %w", err)
+		return nil, fmt.Errorf("failed to read product: %w", productErr)
 	}
 
 	listItemRepo := listItemRepository.New(s.db)
