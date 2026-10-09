@@ -120,6 +120,20 @@ func (r *GroupMemberRepository) FindByUserAndGroup(userID, groupID uuid.UUID) (*
 	return &details, nil
 }
 
+func (r *GroupMemberRepository) ExistsByUserAndGroup(userID, groupID uuid.UUID) (bool, error) {
+	var count int64
+
+	err := r.db.Model(&groupMemberModel.GroupMember{}).
+		Where("user_id = ? AND group_id = ?", userID, groupID).
+		Count(&count).Error
+
+	if err != nil {
+		return false, err
+	}
+
+	return count > 0, nil
+}
+
 func (r *GroupMemberRepository) Delete(id uuid.UUID) (int64, error) {
 	result := r.db.Where("id = ?", id).Delete(&groupMemberModel.GroupMember{})
 

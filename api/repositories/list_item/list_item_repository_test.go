@@ -3,7 +3,6 @@ package listItemRepository_test
 import (
 	"regexp"
 	"testing"
-	"time"
 
 	listItemModel "sl-api/api/model/list_item"
 	"sl-api/api/repositories/list_item"
@@ -36,9 +35,7 @@ func TestRepository_ListByList(t *testing.T) {
 	testUtil.Equal(t, items[1].Status, listItemModel.StatusInCart)
 }
 
-// A soft-deleted row must still be found, otherwise re-adding a removed product
-// would try to insert and collide with the unique constraint.
-func TestRepository_FindByListAndProductIncludesSoftDeleted(t *testing.T) {
+func TestRepository_FindByListAndProduct(t *testing.T) {
 	t.Parallel()
 
 	db, mock, err := mockDB.NewMockDB()
@@ -48,8 +45,8 @@ func TestRepository_FindByListAndProductIncludesSoftDeleted(t *testing.T) {
 	listID := uuid.New()
 	productID := uuid.New()
 
-	mockRows := sqlmock.NewRows([]string{"id", "list_id", "product_id", "quantity", "deleted_at"}).
-		AddRow(uuid.New(), listID, productID, 3, time.Now())
+	mockRows := sqlmock.NewRows([]string{"id", "list_id", "product_id", "quantity"}).
+		AddRow(uuid.New(), listID, productID, 3)
 
 	mock.ExpectQuery("^SELECT (.+) FROM \"list_items\" WHERE list_id = (.+) AND product_id = (.+)").
 		WillReturnRows(mockRows)
@@ -58,10 +55,6 @@ func TestRepository_FindByListAndProductIncludesSoftDeleted(t *testing.T) {
 	testUtil.NoError(t, err)
 	testUtil.Equal(t, item.ProductID, productID)
 	testUtil.Equal(t, item.Quantity, 3)
-
-	if !item.DeletedAt.Valid {
-		t.Fatal("expected the soft-deleted row to be returned with deleted_at set")
-	}
 }
 
 func TestRepository_IncrementQuantity(t *testing.T) {

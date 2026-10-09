@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"gorm.io/gorm"
 )
 
 type Status string
@@ -26,7 +25,6 @@ type ListItem struct {
 	Note      string
 	CreatedAt time.Time
 	UpdatedAt time.Time
-	DeletedAt gorm.DeletedAt
 }
 
 func (ListItem) TableName() string {
@@ -76,4 +74,11 @@ func (is ListItems) ToDto() []*DTO {
 	}
 
 	return dtos
+}
+
+type Form struct {
+	ProductID string `json:"productId" validate:"required,uuid"`
+	Quantity  int    `json:"quantity" validate:"omitempty,min=1"`
+	Unit      string `json:"unit" validate:"omitempty,max=50"`
+	Note      string `json:"note"`
 }
