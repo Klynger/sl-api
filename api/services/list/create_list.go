@@ -18,7 +18,7 @@ type CreateListInput struct {
 }
 
 type CreateListOutput struct {
-	ListID uuid.UUID
+	ListID uuid.UUID `json:"listId"`
 }
 
 // CreateList creates a new list in a group. The caller must be a member of that group.

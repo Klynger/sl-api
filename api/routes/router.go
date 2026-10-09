@@ -10,6 +10,7 @@ import (
 	"sl-api/api/routes/group"
 	"sl-api/api/routes/group/invite"
 	"sl-api/api/routes/health"
+	"sl-api/api/routes/list"
 	"sl-api/api/routes/product"
 	"sl-api/api/routes/user"
 )
@@ -24,6 +25,7 @@ func New(db *gorm.DB, validator *validator.Validate, authSessionStore *sessions.
 		userAPI := userHandlers.New(db, authSessionStore, authMaxAge, isDebugging, validator)
 		groupAPI := groupHandlers.New(db, validator)
 		inviteAPI := inviteHandlers.New(db, validator)
+		listAPI := listHandlers.New(db, validator)
 
 		r.Use(middleware.SetDefaultV1Headers)
 
@@ -44,6 +46,9 @@ func New(db *gorm.DB, validator *validator.Validate, authSessionStore *sessions.
 			authedRouter.Post("/groups", groupAPI.Create)
 			authedRouter.Post("/groups/{groupId}/invites", inviteAPI.Create)
 			authedRouter.Post("/groups/{groupId}/invites/accept", inviteAPI.AcceptInvite)
+
+			authedRouter.Post("/groups/{groupId}/lists", listAPI.Create)
+			authedRouter.Post("/lists/{listId}/items", listAPI.AddItem)
 		})
 	})
 

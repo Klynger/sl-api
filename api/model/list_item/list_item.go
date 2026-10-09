@@ -75,3 +75,10 @@ func (is ListItems) ToDto() []*DTO {
 
 	return dtos
 }
+
+type Form struct {
+	ProductID string `json:"productId" validate:"required,uuid"`
+	Quantity  int    `json:"quantity" validate:"omitempty,min=1"`
+	Unit      string `json:"unit" validate:"omitempty,max=50"`
+	Note      string `json:"note"`
+}

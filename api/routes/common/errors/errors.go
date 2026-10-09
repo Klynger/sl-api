@@ -26,6 +26,7 @@ const (
 	CodeUserNotFound    = "USER_NOT_FOUND"
 	CodeGroupNotFound   = "GROUP_NOT_FOUND"
 	CodeInviteNotFound  = "INVITE_NOT_FOUND"
+	CodeListNotFound    = "LIST_NOT_FOUND"
 
 	CodeInvalidCredentials = "INVALID_CREDENTIALS"
 	CodeUnauthorized       = "UNAUTHORIZED"
@@ -38,6 +39,7 @@ const (
 	CodeNotAMember              = "NOT_A_MEMBER"
 	CodeInsufficientPermissions = "INSUFFICIENT_PERMISSIONS"
 	CodeUsernameTaken           = "USERNAME_TAKEN"
+	CodeItemAlreadyOnList       = "ITEM_ALREADY_ON_LIST"
 
 	CodeRequired         = "REQUIRED"
 	CodeMaxLength        = "MAX_LENGTH"

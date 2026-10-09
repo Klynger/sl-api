@@ -25,7 +25,7 @@ type AddItemInput struct {
 }
 
 type AddItemOutput struct {
-	ItemID uuid.UUID
+	ItemID uuid.UUID `json:"itemId"`
 }
 
 // AddItem adds a product to a list. The caller must be a member of the list's

@@ -54,3 +54,7 @@ func (ls Lists) ToDto() []*DTO {
 
 	return dtos
 }
+
+type Form struct {
+	Name string `json:"name" validate:"required,max=255"`
+}
