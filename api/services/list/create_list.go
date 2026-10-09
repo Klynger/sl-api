@@ -6,7 +6,6 @@ import (
 
 	"sl-api/api/middleware"
 	listModel "sl-api/api/model/list"
-	groupMemberRepository "sl-api/api/repositories/group_member"
 	listRepository "sl-api/api/repositories/list"
 
 	"github.com/google/uuid"
@@ -29,14 +28,8 @@ func (s *ListService) CreateList(ctx context.Context, input CreateListInput) (*C
 		return nil, err
 	}
 
-	memberRepo := groupMemberRepository.New(s.db)
-	isMember, err := memberRepo.ExistsByUserAndGroup(userID, input.GroupID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check group membership: %w", err)
-	}
-
-	if !isMember {
-		return nil, ErrNotAMember
+	if err := s.ensureGroupMember(userID, input.GroupID); err != nil {
+		return nil, err
 	}
 
 	listRepo := listRepository.New(s.db)

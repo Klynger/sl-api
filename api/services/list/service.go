@@ -1,6 +1,13 @@
 package listService
 
-import "gorm.io/gorm"
+import (
+	"fmt"
+
+	"github.com/google/uuid"
+	"gorm.io/gorm"
+
+	groupMemberRepository "sl-api/api/repositories/group_member"
+)
 
 // ListService owns the business logic for shopping lists and their items:
 // authorization (group membership) and multi-step operations that must stay
@@ -14,7 +21,20 @@ func New(db *gorm.DB) *ListService {
 	return &ListService{db: db}
 }
 
-// TODO: shared group-membership authorization helper.
-// Where this lives (a method here, the handler, or middleware) is the decision
-// we're about to make. Every operation below will gate on it before touching
-// list or item data.
+// ensureGroupMember returns ErrNotAMember unless the user belongs to the group.
+// It is the single home for the membership authorization check shared by every
+// list operation.
+func (s *ListService) ensureGroupMember(userID, groupID uuid.UUID) error {
+	memberRepo := groupMemberRepository.New(s.db)
+
+	isMember, err := memberRepo.ExistsByUserAndGroup(userID, groupID)
+	if err != nil {
+		return fmt.Errorf("failed to check group membership: %w", err)
+	}
+
+	if !isMember {
+		return ErrNotAMember
+	}
+
+	return nil
+}

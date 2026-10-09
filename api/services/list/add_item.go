@@ -7,7 +7,6 @@ import (
 
 	"sl-api/api/middleware"
 	listItemModel "sl-api/api/model/list_item"
-	groupMemberRepository "sl-api/api/repositories/group_member"
 	listRepository "sl-api/api/repositories/list"
 	listItemRepository "sl-api/api/repositories/list_item"
 	productRepository "sl-api/api/repositories/product"
@@ -47,14 +46,8 @@ func (s *ListService) AddItem(ctx context.Context, input AddItemInput) (*AddItem
 		return nil, fmt.Errorf("failed to read list: %w", err)
 	}
 
-	memberRepo := groupMemberRepository.New(s.db)
-	isMember, err := memberRepo.ExistsByUserAndGroup(userID, list.GroupID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check group membership: %w", err)
-	}
-
-	if !isMember {
-		return nil, ErrNotAMember
+	if err := s.ensureGroupMember(userID, list.GroupID); err != nil {
+		return nil, err
 	}
 
 	productRepo := productRepository.New(s.db)
