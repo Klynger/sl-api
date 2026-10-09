@@ -11,34 +11,41 @@ type Product struct {
 	ID          uuid.UUID `gorm:"primarykey"`
 	Name        string    `gorm:"column:product_name"`
 	Description string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	DeletedAt   gorm.DeletedAt
+	// PredefinedUnit is the product's canonical unit (for example "L" for milk).
+	// A list item may override it with a unit of its own.
+	PredefinedUnit string `gorm:"column:predefined_unit"`
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	DeletedAt      gorm.DeletedAt
 }
 
 func (p *Product) ToDto() *DTO {
 	return &DTO{
-		ID:          p.ID.String(),
-		Name:        p.Name,
-		Description: p.Description,
+		ID:             p.ID.String(),
+		Name:           p.Name,
+		Description:    p.Description,
+		PredefinedUnit: p.PredefinedUnit,
 	}
 }
 
 type DTO struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	Description    string `json:"description"`
+	PredefinedUnit string `json:"predefinedUnit"`
 }
 
 type Form struct {
-	Name        string `json:"name" validate:"required,max=255"`
-	Description string `json:"description"`
+	Name           string `json:"name" validate:"required,max=255"`
+	Description    string `json:"description"`
+	PredefinedUnit string `json:"predefinedUnit" validate:"max=50"`
 }
 
 func (f *Form) ToModel() *Product {
 	return &Product{
-		Name:        f.Name,
-		Description: f.Description,
+		Name:           f.Name,
+		Description:    f.Description,
+		PredefinedUnit: f.PredefinedUnit,
 	}
 }
 
