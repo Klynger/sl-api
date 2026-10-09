@@ -46,13 +46,12 @@ func (r *ListItemRepository) ListByList(listID uuid.UUID) (listItemModel.ListIte
 	return items, nil
 }
 
-// FindByListAndProduct looks up the row for a (list, product) pair including
-// soft-deleted ones. The unique constraint spans deleted rows, so callers adding
-// a product need to see a previously removed row in order to revive it instead
-// of inserting a duplicate.
+// FindByListAndProduct looks up the live row for a (list, product) pair, used to
+// detect whether a product is already on a list. Returns gorm.ErrRecordNotFound
+// when the pair is not present.
 func (r *ListItemRepository) FindByListAndProduct(listID, productID uuid.UUID) (*listItemModel.ListItem, error) {
 	item := &listItemModel.ListItem{}
-	if err := r.db.Unscoped().
+	if err := r.db.
 		Where("list_id = ? AND product_id = ?", listID, productID).
 		First(&item).Error; err != nil {
 		return nil, err
@@ -77,23 +76,6 @@ func (r *ListItemRepository) IncrementQuantity(id uuid.UUID, by int) (int64, err
 // Restore revives a soft-deleted row and resets the fields a fresh add would
 // set. It writes through a map so empty values (an unset unit or note) are
 // persisted rather than skipped as zero values.
-func (r *ListItemRepository) Restore(item *listItemModel.ListItem) (int64, error) {
-	result := r.db.Unscoped().
-		Model(&listItemModel.ListItem{}).
-		Where("id = ?", item.ID).
-		Updates(map[string]any{
-			"deleted_at": nil,
-			"added_by":   item.AddedBy,
-			"quantity":   item.Quantity,
-			"unit":       item.Unit,
-			"status":     item.Status,
-			"note":       item.Note,
-			"updated_at": time.Now(),
-		})
-
-	return result.RowsAffected, result.Error
-}
-
 func (r *ListItemRepository) Update(item *listItemModel.ListItem) (int64, error) {
 	result := r.db.Model(&listItemModel.ListItem{}).
 		Select("Quantity", "Unit", "Status", "Note", "UpdatedAt").

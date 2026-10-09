@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"gorm.io/gorm"
 )
 
 type Status string
@@ -26,7 +25,6 @@ type ListItem struct {
 	Note      string
 	CreatedAt time.Time
 	UpdatedAt time.Time
-	DeletedAt gorm.DeletedAt
 }
 
 func (ListItem) TableName() string {
