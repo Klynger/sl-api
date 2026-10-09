@@ -24,7 +24,7 @@ services:
     command: ["sh", "-c", "/sl-api/bin/migrate up && /sl-api/bin/api"]
 
   db:
-    image: postgres:alpine
+    image: public.ecr.aws/docker/library/postgres:alpine
     environment:
       - POSTGRES_DB=shoppinglist_db
       - POSTGRES_USER=shoppinglist_user
