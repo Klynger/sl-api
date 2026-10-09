@@ -53,6 +53,35 @@ func (r *ListRepository) Update(list *listModel.List) (int64, error) {
 	return result.RowsAffected, result.Error
 }
 
+// AddItemData carries the two independent existence lookups AddItem needs,
+// fetched in a single round-trip. A field being Valid=false means that row was
+// not found (NULL in the query), which lets the service tell a missing list
+// apart from a missing product. ListGroupID also hands back the list's group so
+// the membership check needs no extra read.
+type AddItemData struct {
+	ListGroupID uuid.NullUUID
+	ProductID   uuid.NullUUID
+}
+
+// GetAddItemData looks up the list's group and the product's existence in one
+// query. Scalar subqueries (rather than a join) are used so that a missing list
+// and a missing product report independently instead of collapsing to zero rows.
+func (r *ListRepository) GetAddItemData(listID, productID uuid.UUID) (*AddItemData, error) {
+	var data AddItemData
+
+	query := `
+		SELECT
+			(SELECT group_id FROM lists WHERE id = ? AND deleted_at IS NULL) AS list_group_id,
+			(SELECT id FROM products WHERE id = ? AND deleted_at IS NULL) AS product_id
+	`
+
+	if err := r.db.Raw(query, listID, productID).Scan(&data).Error; err != nil {
+		return nil, err
+	}
+
+	return &data, nil
+}
+
 func (r *ListRepository) Delete(id uuid.UUID) (int64, error) {
 	result := r.db.Where("id = ?", id).Delete(&listModel.List{})
 
