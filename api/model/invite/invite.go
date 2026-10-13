@@ -18,5 +18,5 @@ type Invite struct {
 }
 
 type Form struct {
-	InvitedUserID string `json:"invitedUserId" validate:"required,min=1"`
+	InvitedUsername string `json:"invitedUsername" validate:"required,max=50"`
 }

@@ -40,6 +40,14 @@ func main() {
 	}
 
 	authStore := sessions.NewCookieStore([]byte(conf.StoreSessions.AuthSecret))
+	// Set the store's options so the per-request session refresh in RequireAuth
+	// matches login: in debug the cookie is non-Secure so it works over plain HTTP.
+	authStore.Options = &sessions.Options{
+		Path:     "/",
+		MaxAge:   conf.StoreSessions.AuthMaxAgeSecs,
+		HttpOnly: !conf.Server.Debug,
+		Secure:   !conf.Server.Debug,
+	}
 
 	handlers := router.New(db, validator, authStore, conf.Server.Debug, conf.StoreSessions.AuthMaxAgeSecs)
 	s := &http.Server{

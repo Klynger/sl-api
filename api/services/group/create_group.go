@@ -30,8 +30,8 @@ type CreateInput struct {
 }
 
 type CreateOutput struct {
-	GroupID uuid.UUID
-	UserID  uuid.UUID
+	GroupID uuid.UUID `json:"groupId"`
+	UserID  uuid.UUID `json:"userId"`
 }
 
 func (s *CreateService) Execute(ctx context.Context, input CreateInput) (*CreateOutput, error) {
