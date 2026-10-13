@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"os"
+
+	"golang.org/x/sync/errgroup"
 )
 
 func baseURL() string {
@@ -92,19 +94,26 @@ func login(ctx context.Context, client *http.Client, base, username, password st
 // createProducts creates each named product, then returns the catalog's ids.
 // Create returns no body, so the ids come from a follow-up GET /v1/products.
 func createProducts(ctx context.Context, client *http.Client, base string, names []string) ([]string, error) {
-	// Created sequentially on purpose: these are authenticated requests, and this
-	// API re-issues the session cookie on every response, so firing them in
-	// parallel races on the shared cookie jar and can drop the session.
-	for _, name := range names {
-		resp, err := postJSON(ctx, client, base, "/v1/products", map[string]any{"name": name})
-		if err != nil {
-			return nil, err
-		}
-		resp.Body.Close()
+	g, gctx := errgroup.WithContext(ctx)
 
-		if resp.StatusCode != http.StatusCreated {
-			return nil, fmt.Errorf("create product %q: unexpected status %d", name, resp.StatusCode)
-		}
+	for _, name := range names {
+		g.Go(func() error {
+			resp, err := postJSON(gctx, client, base, "/v1/products", map[string]any{"name": name})
+			if err != nil {
+				return err
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusCreated {
+				return fmt.Errorf("create product %q: unexpected status %d", name, resp.StatusCode)
+			}
+
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return nil, err
 	}
 
 	resp, err := getJSON(ctx, client, base, "/v1/products")
