@@ -74,6 +74,39 @@ func (r *ListItemRepository) IncrementQuantity(id uuid.UUID, by int) (int64, err
 	return result.RowsAffected, result.Error
 }
 
+// IncrementQuantityForMember adds to an item's quantity in a single atomic
+// statement, but only when the item belongs to the given list and the caller is
+// a member of that list's group. The membership subquery gates the update, and
+// RETURNING yields the new quantity. updated is false when no row matched (not a
+// member, no such list, or no such item alike), so the caller cannot tell them
+// apart.
+func (r *ListItemRepository) IncrementQuantityForMember(listID, itemID, userID uuid.UUID, by int) (int, bool, error) {
+	query := `
+		UPDATE list_items
+		SET quantity = quantity + ?, updated_at = now()
+		WHERE id = ? AND list_id = ? AND list_id IN (
+			SELECT l.id
+			FROM lists l
+			JOIN group_members gm
+				ON gm.group_id = l.group_id AND gm.user_id = ? AND gm.deleted_at IS NULL
+			WHERE l.deleted_at IS NULL
+		)
+		RETURNING quantity
+	`
+
+	var newQuantity int
+	result := r.db.Raw(query, by, itemID, listID, userID).Scan(&newQuantity)
+	if result.Error != nil {
+		return 0, false, result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		return 0, false, nil
+	}
+
+	return newQuantity, true, nil
+}
+
 // ListForMember returns a list's items (each with its product name) only if the
 // caller is a member of the list's group. The inner join on group_members
 // enforces membership, and the LEFT JOIN on list_items keeps one row for an
