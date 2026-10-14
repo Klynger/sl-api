@@ -22,6 +22,22 @@ services:
       db:
         condition: service_healthy
     command: ["sh", "-c", "/sl-api/bin/migrate up && /sl-api/bin/api"]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/livez"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  seed:
+    build: .
+    environment:
+      - SEED_BASE_URL=http://app:8080
+    depends_on:
+      app:
+        condition: service_healthy
+    command: ["/sl-api/bin/seed"]
+    restart: "no"
 
   db:
     image: public.ecr.aws/docker/library/postgres:alpine

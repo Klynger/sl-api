@@ -2,6 +2,7 @@ package groupService
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -12,6 +13,7 @@ import (
 	"sl-api/api/model/invite"
 	"sl-api/api/model/user"
 	"sl-api/api/repositories/invite"
+	"sl-api/api/repositories/user"
 	groupTypes "sl-api/api/types/group"
 )
 
@@ -28,8 +30,8 @@ func NewCreateInviteService(
 }
 
 type CreateInviteInput struct {
-	GroupID       uuid.UUID
-	InvitedUserID uuid.UUID
+	GroupID         uuid.UUID
+	InvitedUsername string
 }
 
 type CreateInviteOutput struct {
@@ -52,7 +54,19 @@ func (s *CreateInviteService) Execute(ctx context.Context, input CreateInviteInp
 		return nil, err
 	}
 
-	if authedUserID == input.InvitedUserID {
+	userRepo := userRepository.New(s.db)
+
+	invitedUser, err := userRepo.ReadByUsername(input.InvitedUsername)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrUserNotFound
+		}
+		return nil, fmt.Errorf("failed to look up invited user: %w", err)
+	}
+
+	invitedUserID := invitedUser.ID
+
+	if authedUserID == invitedUserID {
 		return nil, ErrInviteSelf
 	}
 
@@ -61,7 +75,7 @@ func (s *CreateInviteService) Execute(ctx context.Context, input CreateInviteInp
 	inviteData, err := inviteRepo.GetCreateInviteData(&groupTypes.GetCreateInviteDataInput{
 		Ctx:           ctx,
 		GroupID:       input.GroupID,
-		InvitedUserID: input.InvitedUserID,
+		InvitedUserID: invitedUserID,
 		AuthedUserID:  authedUserID,
 	})
 
@@ -97,7 +111,7 @@ func (s *CreateInviteService) Execute(ctx context.Context, input CreateInviteInp
 		ID:            uuid.New(),
 		GroupID:       input.GroupID,
 		SenderID:      authedUserID,
-		InvitedUserID: input.InvitedUserID,
+		InvitedUserID: invitedUserID,
 	})
 
 	if err != nil {

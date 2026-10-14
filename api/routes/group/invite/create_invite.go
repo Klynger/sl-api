@@ -58,15 +58,9 @@ func (api *API) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	invitedUserID, err := uuid.Parse(form.InvitedUserID)
-	if err != nil {
-		errorsCommon.BadRequest(w, errorsCommon.NewErrorWithMeta(errorsCommon.CodeInvalidUUID, "the provided invited user id is not a valid UUID", map[string]any{"field": "invitedUserId"}))
-		return
-	}
-
 	input := groupService.CreateInviteInput{
-		GroupID:       groupID,
-		InvitedUserID: invitedUserID,
+		GroupID:         groupID,
+		InvitedUsername: form.InvitedUsername,
 	}
 
 	output, err := api.inviteService.Execute(r.Context(), input)
@@ -77,6 +71,8 @@ func (api *API) Create(w http.ResponseWriter, r *http.Request) {
 			errorsCommon.Unauthorized(w, errorsCommon.NewError(errorsCommon.CodeUnauthorized, "authentication required"))
 		case errors.Is(err, groupService.ErrInviteSelf):
 			errorsCommon.BadRequest(w, errorsCommon.NewError(errorsCommon.CodeInviteSelf, "cannot invite yourself"))
+		case errors.Is(err, groupService.ErrUserNotFound):
+			errorsCommon.NotFound(w, errorsCommon.NewError(errorsCommon.CodeUserNotFound, "user not found"))
 		case errors.Is(err, groupService.ErrGroupNotFound):
 			errorsCommon.NotFound(w, errorsCommon.NewError(errorsCommon.CodeGroupNotFound, "group not found"))
 		case errors.Is(err, groupService.ErrAlreadyInvited):
