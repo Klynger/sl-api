@@ -82,3 +82,51 @@ type Form struct {
 	Unit      string `json:"unit" validate:"omitempty,max=50"`
 	Note      string `json:"note"`
 }
+
+// ItemWithProduct is a list item joined with its product's name, for read
+// endpoints where the client wants the product label inline rather than just an id.
+type ItemWithProduct struct {
+	ID          uuid.UUID
+	ProductID   uuid.UUID
+	ProductName string
+	AddedBy     uuid.UUID
+	Quantity    int
+	Unit        string
+	Status      Status
+	Note        string
+}
+
+type ItemWithProductDTO struct {
+	ID          string `json:"id"`
+	ProductID   string `json:"productId"`
+	ProductName string `json:"productName"`
+	AddedBy     string `json:"addedBy"`
+	Quantity    int    `json:"quantity"`
+	Unit        string `json:"unit"`
+	Status      string `json:"status"`
+	Note        string `json:"note"`
+}
+
+func (i *ItemWithProduct) ToDto() *ItemWithProductDTO {
+	return &ItemWithProductDTO{
+		ID:          i.ID.String(),
+		ProductID:   i.ProductID.String(),
+		ProductName: i.ProductName,
+		AddedBy:     i.AddedBy.String(),
+		Quantity:    i.Quantity,
+		Unit:        i.Unit,
+		Status:      string(i.Status),
+		Note:        i.Note,
+	}
+}
+
+type ItemsWithProduct []*ItemWithProduct
+
+func (is ItemsWithProduct) ToDto() []*ItemWithProductDTO {
+	dtos := make([]*ItemWithProductDTO, len(is))
+	for i, v := range is {
+		dtos[i] = v.ToDto()
+	}
+
+	return dtos
+}
