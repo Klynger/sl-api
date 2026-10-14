@@ -48,7 +48,9 @@ func New(db *gorm.DB, validator *validator.Validate, authSessionStore *sessions.
 			authedRouter.Post("/groups/{groupId}/invites/accept", inviteAPI.AcceptInvite)
 
 			authedRouter.Post("/groups/{groupId}/lists", listAPI.Create)
+			authedRouter.Get("/groups/{groupId}/lists", listAPI.List)
 			authedRouter.Post("/lists/{listId}/items", listAPI.AddItem)
+			authedRouter.Get("/lists/{listId}/items", listAPI.ListItems)
 		})
 	})
 
