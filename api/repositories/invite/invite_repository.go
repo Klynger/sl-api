@@ -154,6 +154,46 @@ func (r *InviteRepository) GetCreateInviteData(input *groupTypes.GetCreateInvite
 	return inviteData, nil
 }
 
+// ListPendingForUser returns the live invites addressed to a user, each joined
+// with its group name and sender username so the recipient can recognize them.
+func (r *InviteRepository) ListPendingForUser(invitedUserID uuid.UUID) (inviteModel.PendingInvites, error) {
+	invites := make(inviteModel.PendingInvites, 0)
+
+	err := r.db.Table("invites").
+		Select("invites.id, invites.group_id, groups.name AS group_name, "+
+			"invites.sender_id, sender.username AS sender_username").
+		Joins("INNER JOIN groups ON groups.id = invites.group_id AND groups.deleted_at IS NULL").
+		Joins("INNER JOIN users AS sender ON sender.id = invites.sender_id AND sender.deleted_at IS NULL").
+		Where("invites.invited_user_id = ? AND invites.deleted_at IS NULL", invitedUserID).
+		Scan(&invites).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return invites, nil
+}
+
+// ListPendingForGroup returns the live invites for a group, each joined with the
+// group name and sender username. Membership is checked by the caller, not here.
+func (r *InviteRepository) ListPendingForGroup(groupID uuid.UUID) (inviteModel.PendingInvites, error) {
+	invites := make(inviteModel.PendingInvites, 0)
+
+	err := r.db.Table("invites").
+		Select("invites.id, invites.group_id, groups.name AS group_name, "+
+			"invites.sender_id, sender.username AS sender_username").
+		Joins("INNER JOIN groups ON groups.id = invites.group_id AND groups.deleted_at IS NULL").
+		Joins("INNER JOIN users AS sender ON sender.id = invites.sender_id AND sender.deleted_at IS NULL").
+		Where("invites.group_id = ? AND invites.deleted_at IS NULL", groupID).
+		Scan(&invites).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return invites, nil
+}
+
 func (r *InviteRepository) GetAcceptInviteData(groupID, invitedUserID uuid.UUID) (*inviteModel.Invite, error) {
 	invite := &inviteModel.Invite{}
 
