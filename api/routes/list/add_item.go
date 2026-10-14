@@ -56,8 +56,6 @@ func (a *API) AddItem(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case errors.Is(err, middleware.ErrUnauthorized):
 			errorsCommon.Unauthorized(w, errorsCommon.NewError(errorsCommon.CodeUnauthorized, "authentication required"))
-		case errors.Is(err, listService.ErrNotAMember):
-			errorsCommon.Forbidden(w, errorsCommon.NewError(errorsCommon.CodeNotAMember, "you are not a member of this group"))
 		case errors.Is(err, listService.ErrListNotFound):
 			errorsCommon.NotFound(w, errorsCommon.NewError(errorsCommon.CodeListNotFound, "list not found"))
 		case errors.Is(err, listService.ErrProductNotFound):

@@ -27,6 +27,7 @@ const (
 	CodeGroupNotFound   = "GROUP_NOT_FOUND"
 	CodeInviteNotFound  = "INVITE_NOT_FOUND"
 	CodeListNotFound    = "LIST_NOT_FOUND"
+	CodeItemNotFound    = "ITEM_NOT_FOUND"
 
 	CodeInvalidCredentials = "INVALID_CREDENTIALS"
 	CodeUnauthorized       = "UNAUTHORIZED"

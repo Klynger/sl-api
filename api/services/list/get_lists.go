@@ -2,6 +2,7 @@ package listService
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -19,6 +20,11 @@ func (s *ListService) ListLists(ctx context.Context, groupID uuid.UUID) (listMod
 	}
 
 	if err := s.ensureGroupMember(userID, groupID); err != nil {
+		// A non-member must not learn the group exists, so the membership
+		// failure is reported as a missing group.
+		if errors.Is(err, ErrNotAMember) {
+			return nil, ErrGroupNotFound
+		}
 		return nil, err
 	}
 

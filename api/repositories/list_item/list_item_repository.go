@@ -74,9 +74,6 @@ func (r *ListItemRepository) IncrementQuantity(id uuid.UUID, by int) (int64, err
 	return result.RowsAffected, result.Error
 }
 
-// Restore revives a soft-deleted row and resets the fields a fresh add would
-// set. It writes through a map so empty values (an unset unit or note) are
-// persisted rather than skipped as zero values.
 // ListForMember returns a list's items (each with its product name) only if the
 // caller is a member of the list's group. The inner join on group_members
 // enforces membership, and the LEFT JOIN on list_items keeps one row for an
@@ -150,4 +147,29 @@ func (r *ListItemRepository) Delete(id uuid.UUID) (int64, error) {
 	result := r.db.Where("id = ?", id).Delete(&listItemModel.ListItem{})
 
 	return result.RowsAffected, result.Error
+}
+
+// DeleteForMember hard-deletes one item from a list, but only when the item
+// belongs to that list and the caller is a member of the list's group. The
+// membership subquery is what gates the delete; it reports whether a row was
+// removed, and false covers "not a member", "no such list", and "no such item"
+// alike, so the caller cannot tell them apart.
+func (r *ListItemRepository) DeleteForMember(listID, itemID, userID uuid.UUID) (bool, error) {
+	query := `
+		DELETE FROM list_items
+		WHERE id = ? AND list_id = ? AND list_id IN (
+			SELECT l.id
+			FROM lists l
+			JOIN group_members gm
+				ON gm.group_id = l.group_id AND gm.user_id = ? AND gm.deleted_at IS NULL
+			WHERE l.deleted_at IS NULL
+		)
+	`
+
+	result := r.db.Exec(query, itemID, listID, userID)
+	if result.Error != nil {
+		return false, result.Error
+	}
+
+	return result.RowsAffected > 0, nil
 }

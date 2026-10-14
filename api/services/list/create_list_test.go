@@ -43,8 +43,9 @@ func TestCreateList_NotAMember(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 
 	_, err = svc.CreateList(ctxWithUser(uuid.New()), listService.CreateListInput{GroupID: uuid.New(), Name: "X"})
-	if !errors.Is(err, listService.ErrNotAMember) {
-		t.Fatalf("want ErrNotAMember, got %v", err)
+	// A non-member is reported as a missing group, not revealed as a non-member.
+	if !errors.Is(err, listService.ErrGroupNotFound) {
+		t.Fatalf("want ErrGroupNotFound, got %v", err)
 	}
 }
 

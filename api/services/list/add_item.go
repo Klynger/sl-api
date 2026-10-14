@@ -53,6 +53,11 @@ func (s *ListService) AddItem(ctx context.Context, input AddItemInput) (*AddItem
 	}
 
 	if err := s.ensureGroupMember(userID, data.ListGroupID.UUID); err != nil {
+		// A non-member must not learn the list exists, so the membership
+		// failure is reported as a missing list.
+		if errors.Is(err, ErrNotAMember) {
+			return nil, ErrListNotFound
+		}
 		return nil, err
 	}
 

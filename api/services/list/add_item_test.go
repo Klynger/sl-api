@@ -64,8 +64,9 @@ func TestAddItem_NotAMember(t *testing.T) {
 	mock.ExpectQuery(`^SELECT count\(\*\) FROM "group_members"`).WillReturnRows(memberCount(0))
 
 	_, err = svc.AddItem(ctxWithUser(uuid.New()), listService.AddItemInput{ListID: uuid.New(), ProductID: uuid.New()})
-	if !errors.Is(err, listService.ErrNotAMember) {
-		t.Fatalf("want ErrNotAMember, got %v", err)
+	// A non-member is reported as a missing list, not revealed as a non-member.
+	if !errors.Is(err, listService.ErrListNotFound) {
+		t.Fatalf("want ErrListNotFound, got %v", err)
 	}
 }
 

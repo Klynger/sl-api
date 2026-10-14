@@ -25,7 +25,7 @@ func (a *API) List(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case errors.Is(err, middleware.ErrUnauthorized):
 			errorsCommon.Unauthorized(w, errorsCommon.NewError(errorsCommon.CodeUnauthorized, "authentication required"))
-		case errors.Is(err, listService.ErrNotAMember):
+		case errors.Is(err, listService.ErrGroupNotFound):
 			// Reported as 404 so the endpoint does not reveal a group the caller cannot see.
 			errorsCommon.NotFound(w, errorsCommon.NewError(errorsCommon.CodeGroupNotFound, "group not found"))
 		default:
