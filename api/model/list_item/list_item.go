@@ -83,6 +83,13 @@ type Form struct {
 	Note      string `json:"note"`
 }
 
+// IncrementForm is the body for increasing an item's quantity. By is a pointer
+// so an omitted field (increment by the default of 1) is distinguishable from an
+// explicit value, which must be at least 1.
+type IncrementForm struct {
+	By *int `json:"by" validate:"omitempty,min=1"`
+}
+
 // ItemWithProduct is a list item joined with its product's name, for read
 // endpoints where the client wants the product label inline rather than just an id.
 type ItemWithProduct struct {
