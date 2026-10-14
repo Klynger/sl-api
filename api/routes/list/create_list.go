@@ -47,8 +47,8 @@ func (a *API) Create(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case errors.Is(err, middleware.ErrUnauthorized):
 			errorsCommon.Unauthorized(w, errorsCommon.NewError(errorsCommon.CodeUnauthorized, "authentication required"))
-		case errors.Is(err, listService.ErrNotAMember):
-			errorsCommon.Forbidden(w, errorsCommon.NewError(errorsCommon.CodeNotAMember, "you are not a member of this group"))
+		case errors.Is(err, listService.ErrGroupNotFound):
+			errorsCommon.NotFound(w, errorsCommon.NewError(errorsCommon.CodeGroupNotFound, "group not found"))
 		default:
 			errorsCommon.WriteDBError(w, err, errorsCommon.NewError(errorsCommon.CodeDBInsertFailure, "could not create the list"))
 		}

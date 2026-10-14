@@ -21,8 +21,9 @@ func TestListLists_NotMember(t *testing.T) {
 	mock.ExpectQuery(`^SELECT count\(\*\) FROM "group_members"`).WillReturnRows(memberCount(0))
 
 	_, err = svc.ListLists(ctxWithUser(uuid.New()), uuid.New())
-	if !errors.Is(err, listService.ErrNotAMember) {
-		t.Fatalf("want ErrNotAMember, got %v", err)
+	// A non-member is reported as a missing group, not revealed as a non-member.
+	if !errors.Is(err, listService.ErrGroupNotFound) {
+		t.Fatalf("want ErrGroupNotFound, got %v", err)
 	}
 }
 

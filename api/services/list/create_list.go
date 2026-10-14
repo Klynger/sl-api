@@ -2,6 +2,7 @@ package listService
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"sl-api/api/middleware"
@@ -29,6 +30,11 @@ func (s *ListService) CreateList(ctx context.Context, input CreateListInput) (*C
 	}
 
 	if err := s.ensureGroupMember(userID, input.GroupID); err != nil {
+		// A non-member must not learn the group exists, so the membership
+		// failure is reported as a missing group.
+		if errors.Is(err, ErrNotAMember) {
+			return nil, ErrGroupNotFound
+		}
 		return nil, err
 	}
 
