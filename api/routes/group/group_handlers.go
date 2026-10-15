@@ -8,13 +8,13 @@ import (
 )
 
 type API struct {
-	validator          *validator.Validate
-	createGroupService *groupService.CreateService
+	validator    *validator.Validate
+	groupService *groupService.GroupService
 }
 
 func New(db *gorm.DB, validator *validator.Validate) *API {
 	return &API{
-		validator:          validator,
-		createGroupService: groupService.NewCreateService(db),
+		validator:    validator,
+		groupService: groupService.New(db),
 	}
 }

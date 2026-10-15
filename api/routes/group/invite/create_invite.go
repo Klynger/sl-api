@@ -63,7 +63,7 @@ func (api *API) Create(w http.ResponseWriter, r *http.Request) {
 		InvitedUsername: form.InvitedUsername,
 	}
 
-	output, err := api.inviteService.Execute(r.Context(), input)
+	output, err := api.groupService.CreateInvite(r.Context(), input)
 
 	if err != nil {
 		switch {

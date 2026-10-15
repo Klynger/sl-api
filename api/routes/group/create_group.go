@@ -20,7 +20,7 @@ import (
 //	@accept         json
 //	@produce        json
 //	@param          body    body    groupModel.Form    true    "Group form"
-//	@success        201     {object}    groupService.CreateOutput
+//	@success        201     {object}    groupService.CreateGroupOutput
 //	@failure        400     {object}    errorsCommon.ErrorResponse
 //	@failure        401     {object}    errorsCommon.ErrorResponse
 //	@failure        422     {object}    errorsCommon.ErrorResponse
@@ -44,11 +44,11 @@ func (a *API) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	input := groupService.CreateInput{
+	input := groupService.CreateGroupInput{
 		Name: form.Name,
 	}
 
-	output, err := a.createGroupService.Execute(r.Context(), input)
+	output, err := a.groupService.CreateGroup(r.Context(), input)
 	if err != nil {
 		if errors.Is(err, middleware.ErrUnauthorized) {
 			errorsCommon.Unauthorized(w, errorsCommon.NewError(errorsCommon.CodeUnauthorized, "authentication required"))
