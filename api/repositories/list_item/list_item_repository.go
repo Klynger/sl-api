@@ -148,18 +148,36 @@ func (r *ListItemRepository) DecrementQuantityForMember(listID, itemID, userID u
 	return int(row.NewQuantity.Int64), row.Visible, row.NewQuantity.Valid, nil
 }
 
-// UpdateForMember sets the given columns on one item, but only when the item
-// belongs to the list and the caller is a member of its group. The membership
-// subquery gates the write; it returns the updated row via RETURNING, and
-// updated is false when no row matched (not a member, no such list, or no such
-// item alike). The caller supplies at least one field; column names come from a
-// fixed internal mapping, never from request input.
-func (r *ListItemRepository) UpdateForMember(listID, itemID, userID uuid.UUID, fields map[string]any) (*listItemModel.ListItem, bool, error) {
-	setClauses := make([]string, 0, len(fields)+1)
-	args := make([]any, 0, len(fields)+3)
-	for column, value := range fields {
-		setClauses = append(setClauses, column+" = ?")
-		args = append(args, value)
+// ItemPatch carries the mutable fields of a list item for a partial update. A
+// nil field is left unchanged. Modelling the updatable columns as fixed struct
+// fields (rather than a map of string keys) means a column name can never come
+// from outside this package: the set is closed at compile time.
+type ItemPatch struct {
+	Quantity *int
+	Unit     *string
+	Note     *string
+}
+
+// UpdateForMember applies a patch to one item, but only when the item belongs to
+// the list and the caller is a member of its group. The membership subquery
+// gates the write; it returns the updated row via RETURNING, and updated is
+// false when no row matched (not a member, no such list, or no such item alike).
+// Each column maps to a hardcoded literal here, so nothing stringly-typed from a
+// request can reach the SQL.
+func (r *ListItemRepository) UpdateForMember(listID, itemID, userID uuid.UUID, patch ItemPatch) (*listItemModel.ListItem, bool, error) {
+	setClauses := make([]string, 0, 4)
+	args := make([]any, 0, 6)
+	if patch.Quantity != nil {
+		setClauses = append(setClauses, "quantity = ?")
+		args = append(args, *patch.Quantity)
+	}
+	if patch.Unit != nil {
+		setClauses = append(setClauses, "unit = ?")
+		args = append(args, *patch.Unit)
+	}
+	if patch.Note != nil {
+		setClauses = append(setClauses, "note = ?")
+		args = append(args, *patch.Note)
 	}
 	setClauses = append(setClauses, "updated_at = now()")
 

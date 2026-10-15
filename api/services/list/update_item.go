@@ -37,23 +37,16 @@ func (s *ListService) UpdateItem(ctx context.Context, input UpdateItemInput) (*U
 		return nil, err
 	}
 
-	fields := map[string]any{}
-	if input.Quantity != nil {
-		fields["quantity"] = *input.Quantity
-	}
-	if input.Unit != nil {
-		fields["unit"] = *input.Unit
-	}
-	if input.Note != nil {
-		fields["note"] = *input.Note
-	}
-
-	if len(fields) == 0 {
+	if input.Quantity == nil && input.Unit == nil && input.Note == nil {
 		return nil, ErrNoFieldsToUpdate
 	}
 
 	listItemRepo := listItemRepository.New(s.db)
-	item, updated, err := listItemRepo.UpdateForMember(input.ListID, input.ItemID, userID, fields)
+	item, updated, err := listItemRepo.UpdateForMember(input.ListID, input.ItemID, userID, listItemRepository.ItemPatch{
+		Quantity: input.Quantity,
+		Unit:     input.Unit,
+		Note:     input.Note,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to update item: %w", err)
 	}
