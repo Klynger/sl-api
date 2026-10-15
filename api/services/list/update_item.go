@@ -31,6 +31,11 @@ type UpdateItemOutput struct {
 // of them is ErrNoFieldsToUpdate. The caller must be a member of the list's
 // group; a non-member, an unknown list, and an unknown item are all reported as
 // ErrItemNotFound so the endpoint never reveals what it cannot show.
+//
+// A patch that re-sends an item's current values is still a valid update: it is
+// applied and bumps updated_at. We deliberately do not diff against the stored
+// values, treating updated_at as the time of the last accepted write rather than
+// the last content change. Revisit if a client ever needs it to mean the latter.
 func (s *ListService) UpdateItem(ctx context.Context, input UpdateItemInput) (*UpdateItemOutput, error) {
 	userID, err := middleware.GetAuthedUserIDFromCtx(ctx)
 	if err != nil {
