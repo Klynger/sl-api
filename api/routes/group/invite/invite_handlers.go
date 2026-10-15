@@ -8,9 +8,11 @@ import (
 )
 
 type API struct {
-	validator           *validator.Validate
-	inviteService       *groupService.CreateInviteService
-	acceptInviteService *groupService.AcceptInviteService
+	validator               *validator.Validate
+	inviteService           *groupService.CreateInviteService
+	acceptInviteService     *groupService.AcceptInviteService
+	listUserInvitesService  *groupService.ListUserInvitesService
+	listGroupInvitesService *groupService.ListGroupInvitesService
 }
 
 func New(db *gorm.DB, validator *validator.Validate) *API {
@@ -20,6 +22,12 @@ func New(db *gorm.DB, validator *validator.Validate) *API {
 			db,
 		),
 		acceptInviteService: groupService.NewAcceptInviteService(
+			db,
+		),
+		listUserInvitesService: groupService.NewListUserInvitesService(
+			db,
+		),
+		listGroupInvitesService: groupService.NewListGroupInvitesService(
 			db,
 		),
 	}
