@@ -51,8 +51,10 @@ func New(db *gorm.DB, validator *validator.Validate, authSessionStore *sessions.
 			authedRouter.Get("/groups/{groupId}/lists", listAPI.List)
 			authedRouter.Post("/lists/{listId}/items", listAPI.AddItem)
 			authedRouter.Get("/lists/{listId}/items", listAPI.ListItems)
+			authedRouter.Patch("/lists/{listId}/items/{itemId}", listAPI.UpdateItem)
 			authedRouter.Delete("/lists/{listId}/items/{itemId}", listAPI.DeleteItem)
 			authedRouter.Post("/lists/{listId}/items/{itemId}/increment", listAPI.IncreaseItemQuantity)
+			authedRouter.Post("/lists/{listId}/items/{itemId}/decrement", listAPI.DecreaseItemQuantity)
 		})
 	})
 

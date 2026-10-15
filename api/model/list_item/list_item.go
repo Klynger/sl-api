@@ -90,6 +90,22 @@ type IncrementForm struct {
 	By *int `json:"by" validate:"omitempty,min=1"`
 }
 
+// DecrementForm is the body for decreasing an item's quantity. It mirrors
+// IncrementForm: By defaults to 1 when omitted and must be at least 1 when given.
+// The resulting quantity may not drop below 1 (that is a 422, not a delete).
+type DecrementForm struct {
+	By *int `json:"by" validate:"omitempty,min=1"`
+}
+
+// UpdateForm is the body for updating an item's mutable fields. Every field is a
+// pointer so an omitted field is left unchanged, distinct from a field set to
+// its zero value (an empty note, say). Quantity, when present, must be at least 1.
+type UpdateForm struct {
+	Quantity *int    `json:"quantity" validate:"omitempty,min=1"`
+	Unit     *string `json:"unit" validate:"omitempty,max=50"`
+	Note     *string `json:"note"`
+}
+
 // ItemWithProduct is a list item joined with its product's name, for read
 // endpoints where the client wants the product label inline rather than just an id.
 type ItemWithProduct struct {

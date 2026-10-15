@@ -2,6 +2,7 @@ package listItemRepository
 
 import (
 	"database/sql"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -105,6 +106,103 @@ func (r *ListItemRepository) IncrementQuantityForMember(listID, itemID, userID u
 	}
 
 	return newQuantity, true, nil
+}
+
+// DecrementQuantityForMember lowers an item's quantity by `by`, but only when the
+// caller is a member of the item's group and the result stays at least 1. One
+// statement answers three questions so the caller can map them to the right
+// status: `visible` is whether the member can see the item at all (false means a
+// 404), and `decremented` is whether the update actually happened (false while
+// visible means the floor of 1 would be breached, a 422). The floor lives in the
+// UPDATE's own WHERE, so under READ COMMITTED a concurrent decrement re-checks it
+// and cannot push the quantity below 1.
+func (r *ListItemRepository) DecrementQuantityForMember(listID, itemID, userID uuid.UUID, by int) (newQuantity int, visible bool, decremented bool, err error) {
+	query := `
+		WITH visible AS (
+			SELECT li.id
+			FROM list_items li
+			JOIN lists l ON l.id = li.list_id AND l.deleted_at IS NULL
+			JOIN group_members gm
+				ON gm.group_id = l.group_id AND gm.user_id = ? AND gm.deleted_at IS NULL
+			WHERE li.id = ? AND li.list_id = ?
+		),
+		updated AS (
+			UPDATE list_items
+			SET quantity = quantity - ?, updated_at = now()
+			WHERE id IN (SELECT id FROM visible) AND quantity - ? >= 1
+			RETURNING quantity
+		)
+		SELECT
+			EXISTS (SELECT 1 FROM visible) AS visible,
+			(SELECT quantity FROM updated) AS new_quantity
+	`
+
+	var row struct {
+		Visible     bool
+		NewQuantity sql.NullInt64
+	}
+	if err := r.db.Raw(query, userID, itemID, listID, by, by).Scan(&row).Error; err != nil {
+		return 0, false, false, err
+	}
+
+	return int(row.NewQuantity.Int64), row.Visible, row.NewQuantity.Valid, nil
+}
+
+// ItemPatch carries the mutable fields of a list item for a partial update. A
+// nil field is left unchanged. Modelling the updatable columns as fixed struct
+// fields (rather than a map of string keys) means a column name can never come
+// from outside this package: the set is closed at compile time.
+type ItemPatch struct {
+	Quantity *int
+	Unit     *string
+	Note     *string
+}
+
+// UpdateForMember applies a patch to one item, but only when the item belongs to
+// the list and the caller is a member of its group. The membership subquery
+// gates the write; it returns the updated row via RETURNING, and updated is
+// false when no row matched (not a member, no such list, or no such item alike).
+// Each column maps to a hardcoded literal here, so nothing stringly-typed from a
+// request can reach the SQL.
+func (r *ListItemRepository) UpdateForMember(listID, itemID, userID uuid.UUID, patch ItemPatch) (*listItemModel.ListItem, bool, error) {
+	setClauses := make([]string, 0, 4)
+	args := make([]any, 0, 6)
+	if patch.Quantity != nil {
+		setClauses = append(setClauses, "quantity = ?")
+		args = append(args, *patch.Quantity)
+	}
+	if patch.Unit != nil {
+		setClauses = append(setClauses, "unit = ?")
+		args = append(args, *patch.Unit)
+	}
+	if patch.Note != nil {
+		setClauses = append(setClauses, "note = ?")
+		args = append(args, *patch.Note)
+	}
+	setClauses = append(setClauses, "updated_at = now()")
+
+	query := "UPDATE list_items SET " + strings.Join(setClauses, ", ") + `
+		WHERE id = ? AND list_id = ? AND list_id IN (
+			SELECT l.id
+			FROM lists l
+			JOIN group_members gm
+				ON gm.group_id = l.group_id AND gm.user_id = ? AND gm.deleted_at IS NULL
+			WHERE l.deleted_at IS NULL
+		)
+		RETURNING id, list_id, product_id, added_by, quantity, unit, status, note`
+	args = append(args, itemID, listID, userID)
+
+	var item listItemModel.ListItem
+	result := r.db.Raw(query, args...).Scan(&item)
+	if result.Error != nil {
+		return nil, false, result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		return nil, false, nil
+	}
+
+	return &item, true, nil
 }
 
 // ListForMember returns a list's items (each with its product name) only if the

@@ -41,6 +41,8 @@ const (
 	CodeInsufficientPermissions = "INSUFFICIENT_PERMISSIONS"
 	CodeUsernameTaken           = "USERNAME_TAKEN"
 	CodeItemAlreadyOnList       = "ITEM_ALREADY_ON_LIST"
+	CodeQuantityBelowMinimum    = "QUANTITY_BELOW_MINIMUM"
+	CodeNoFieldsToUpdate        = "NO_FIELDS_TO_UPDATE"
 
 	CodeRequired         = "REQUIRED"
 	CodeMaxLength        = "MAX_LENGTH"
