@@ -15,18 +15,6 @@ import (
 	"sl-api/api/services/util"
 )
 
-type AcceptInviteService struct {
-	db *gorm.DB
-}
-
-func NewAcceptInviteService(
-	db *gorm.DB,
-) *AcceptInviteService {
-	return &AcceptInviteService{
-		db: db,
-	}
-}
-
 type AcceptInviteInput struct {
 	GroupID uuid.UUID
 }
@@ -35,7 +23,9 @@ type AcceptInviteOutput struct {
 	GroupMember groupMemberModel.GroupMember
 }
 
-func (s *AcceptInviteService) Execute(ctx context.Context, input AcceptInviteInput) (*AcceptInviteOutput, error) {
+// AcceptInvite turns the caller's pending invite into membership, creating the
+// group member and deleting the invite in one transaction.
+func (s *GroupService) AcceptInvite(ctx context.Context, input AcceptInviteInput) (*AcceptInviteOutput, error) {
 	authedUserID, err := middleware.GetAuthedUserIDFromCtx(ctx)
 	if err != nil {
 		return nil, err

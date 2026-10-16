@@ -122,6 +122,21 @@ Each domain entity gets its own package under `api/resource/` with:
 
 The `API` struct holds a `*Repository` and `*validator.Validate`, constructed via `New(db, v)`.
 
+### Service Layer Structure
+
+Each domain has exactly one service struct under `api/services/<domain>/`
+(`ListService`, `GroupService`), constructed with `New(db)`. Every operation is a
+method on that struct, one method per file (`create_list.go`, `add_item.go`,
+`list_group_invites.go`, ...), named by its action (`CreateList`, `AddItem`,
+`ListGroupInvites`). The operation's input and output types live in the same file
+as the method and are named for the operation (`CreateListInput`,
+`CreateInviteOutput`). Shared helpers live once on the struct, e.g.
+`ensureGroupMember` for the group-membership check.
+
+Do **not** add a separate struct-plus-`Execute` per operation; the single
+service-per-domain shape is the standard (decided in KLY-19). Handlers hold the
+domain's service as a single field, wired through its `New(db)`.
+
 ### Model / DTO / Form Convention
 
 - **Model:** GORM struct with DB tags, timestamps, `gorm.DeletedAt` for soft deletes

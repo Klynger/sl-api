@@ -25,7 +25,7 @@ func (api *API) AcceptInvite(w http.ResponseWriter, r *http.Request) {
 		GroupID: groupID,
 	}
 
-	output, err := api.acceptInviteService.Execute(r.Context(), input)
+	output, err := api.groupService.AcceptInvite(r.Context(), input)
 
 	if err != nil {
 		switch {

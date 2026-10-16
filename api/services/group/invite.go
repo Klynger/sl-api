@@ -9,25 +9,11 @@ import (
 	"gorm.io/gorm"
 
 	"sl-api/api/middleware"
-	"sl-api/api/model/group"
 	"sl-api/api/model/invite"
-	"sl-api/api/model/user"
 	"sl-api/api/repositories/invite"
 	"sl-api/api/repositories/user"
 	groupTypes "sl-api/api/types/group"
 )
-
-type CreateInviteService struct {
-	db *gorm.DB
-}
-
-func NewCreateInviteService(
-	db *gorm.DB,
-) *CreateInviteService {
-	return &CreateInviteService{
-		db: db,
-	}
-}
 
 type CreateInviteInput struct {
 	GroupID         uuid.UUID
@@ -38,17 +24,9 @@ type CreateInviteOutput struct {
 	InviteID uuid.UUID
 }
 
-type groupResult struct {
-	group *groupModel.Group
-	err   error
-}
-
-type userResult struct {
-	user *userModel.User
-	err  error
-}
-
-func (s *CreateInviteService) Execute(ctx context.Context, input CreateInviteInput) (*CreateInviteOutput, error) {
+// CreateInvite invites a user (by username) to a group. The caller must be an
+// owner of the group.
+func (s *GroupService) CreateInvite(ctx context.Context, input CreateInviteInput) (*CreateInviteOutput, error) {
 	authedUserID, err := middleware.GetAuthedUserIDFromCtx(ctx)
 	if err != nil {
 		return nil, err

@@ -15,32 +15,24 @@ import (
 	"sl-api/api/services/util"
 )
 
-type CreateService struct {
-	db *gorm.DB
-}
-
-func NewCreateService(db *gorm.DB) *CreateService {
-	return &CreateService{
-		db: db,
-	}
-}
-
-type CreateInput struct {
+type CreateGroupInput struct {
 	Name string
 }
 
-type CreateOutput struct {
+type CreateGroupOutput struct {
 	GroupID uuid.UUID `json:"groupId"`
 	UserID  uuid.UUID `json:"userId"`
 }
 
-func (s *CreateService) Execute(ctx context.Context, input CreateInput) (*CreateOutput, error) {
+// CreateGroup creates a group and makes the authenticated user its owner, in one
+// transaction.
+func (s *GroupService) CreateGroup(ctx context.Context, input CreateGroupInput) (*CreateGroupOutput, error) {
 	userID, err := middleware.GetAuthedUserIDFromCtx(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	var output *CreateOutput
+	var output *CreateGroupOutput
 
 	err = util.WithTransaction(s.db, func(tx *gorm.DB) error {
 		groupRepo := groupRepository.New(tx)
@@ -66,7 +58,7 @@ func (s *CreateService) Execute(ctx context.Context, input CreateInput) (*Create
 			return fmt.Errorf("failed to create group member: %w", err)
 		}
 
-		output = &CreateOutput{
+		output = &CreateGroupOutput{
 			GroupID: newGroup.ID,
 			UserID:  newMember.UserID,
 		}

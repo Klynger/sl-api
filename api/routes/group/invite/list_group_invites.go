@@ -20,7 +20,7 @@ func (api *API) ListGroupInvites(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	invites, err := api.listGroupInvitesService.Execute(r.Context(), groupID)
+	invites, err := api.groupService.ListGroupInvites(r.Context(), groupID)
 	if err != nil {
 		switch {
 		case errors.Is(err, middleware.ErrUnauthorized):

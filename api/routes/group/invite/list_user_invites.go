@@ -10,7 +10,7 @@ import (
 )
 
 func (api *API) ListUserInvites(w http.ResponseWriter, r *http.Request) {
-	invites, err := api.listUserInvitesService.Execute(r.Context())
+	invites, err := api.groupService.ListUserInvites(r.Context())
 	if err != nil {
 		switch {
 		case errors.Is(err, middleware.ErrUnauthorized):
