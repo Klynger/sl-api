@@ -98,10 +98,15 @@ type GroupMemberDetails struct {
 	UserLastName string
 	GroupID      string
 	GroupName    string
-	Roles        []string
+	Roles        Roles
 }
 
 func (d *GroupMemberDetails) ToDto() *DTO {
+	roles := make([]string, len(d.Roles))
+	for i, role := range d.Roles {
+		roles[i] = string(role)
+	}
+
 	return &DTO{
 		ID:           d.ID,
 		UserID:       d.UserID,
@@ -109,12 +114,23 @@ func (d *GroupMemberDetails) ToDto() *DTO {
 		UserLastName: d.UserLastName,
 		GroupID:      d.GroupID,
 		GroupName:    d.GroupName,
-		Roles:        d.Roles,
+		Roles:        roles,
 	}
 }
 
 func (d *GroupMemberDetails) HasRole(role Role) bool {
-	return slices.Contains(d.Roles, string(role))
+	return slices.Contains(d.Roles, role)
+}
+
+type GroupMembersDetails []*GroupMemberDetails
+
+func (ds GroupMembersDetails) ToDto() []*DTO {
+	dtos := make([]*DTO, len(ds))
+	for i, d := range ds {
+		dtos[i] = d.ToDto()
+	}
+
+	return dtos
 }
 
 func (d *GroupMemberDetails) IsOwner() bool {
