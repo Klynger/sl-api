@@ -53,6 +53,35 @@ func (r *ListRepository) Update(list *listModel.List) (int64, error) {
 	return result.RowsAffected, result.Error
 }
 
+// UpdateStatusForMember sets a list's status, but only when the caller is a
+// member of the list's group. It returns the updated row via RETURNING; updated
+// is false when no row matched (not a member or no such list alike), so the
+// endpoint never reveals a list the caller cannot see.
+func (r *ListRepository) UpdateStatusForMember(listID, userID uuid.UUID, status listModel.Status) (*listModel.List, bool, error) {
+	query := `
+		UPDATE lists
+		SET status = ?, updated_at = now()
+		WHERE id = ? AND deleted_at IS NULL AND group_id IN (
+			SELECT gm.group_id
+			FROM group_members gm
+			WHERE gm.user_id = ? AND gm.deleted_at IS NULL
+		)
+		RETURNING id, group_id, created_by, name, status
+	`
+
+	var list listModel.List
+	result := r.db.Raw(query, string(status), listID, userID).Scan(&list)
+	if result.Error != nil {
+		return nil, false, result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		return nil, false, nil
+	}
+
+	return &list, true, nil
+}
+
 // AddItemData carries the two independent existence lookups AddItem needs,
 // fetched in a single round-trip. A field being Valid=false means that row was
 // not found (NULL in the query), which lets the service tell a missing list

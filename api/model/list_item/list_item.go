@@ -12,6 +12,9 @@ const (
 	StatusPending   Status = "pending"
 	StatusInCart    Status = "in_cart"
 	StatusPurchased Status = "purchased"
+	// StatusCancelled marks an item the shopper gave up on but left on the list,
+	// as opposed to deleting it off the list entirely.
+	StatusCancelled Status = "cancelled"
 )
 
 type ListItem struct {
@@ -104,6 +107,12 @@ type UpdateForm struct {
 	Quantity *int    `json:"quantity" validate:"omitempty,min=1"`
 	Unit     *string `json:"unit" validate:"omitempty,max=50"`
 	Note     *string `json:"note"`
+}
+
+// StatusForm is the body for changing an item's status. Any value in the allowed
+// set is accepted from any current status (transitions are not ordered).
+type StatusForm struct {
+	Status string `json:"status" validate:"required,oneof=pending in_cart purchased cancelled"`
 }
 
 // ItemWithProduct is a list item joined with its product's name, for read

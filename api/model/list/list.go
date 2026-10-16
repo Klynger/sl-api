@@ -58,3 +58,9 @@ func (ls Lists) ToDto() []*DTO {
 type Form struct {
 	Name string `json:"name" validate:"required,max=255"`
 }
+
+// StatusForm is the body for changing a list's status. Any value in the allowed
+// set is accepted from any current status (transitions are not ordered).
+type StatusForm struct {
+	Status string `json:"status" validate:"required,oneof=planning active completed"`
+}

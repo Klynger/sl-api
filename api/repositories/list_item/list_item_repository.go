@@ -156,6 +156,7 @@ type ItemPatch struct {
 	Quantity *int
 	Unit     *string
 	Note     *string
+	Status   *listItemModel.Status
 }
 
 // UpdateForMember applies a patch to one item, but only when the item belongs to
@@ -178,6 +179,10 @@ func (r *ListItemRepository) UpdateForMember(listID, itemID, userID uuid.UUID, p
 	if patch.Note != nil {
 		setClauses = append(setClauses, "note = ?")
 		args = append(args, *patch.Note)
+	}
+	if patch.Status != nil {
+		setClauses = append(setClauses, "status = ?")
+		args = append(args, string(*patch.Status))
 	}
 	setClauses = append(setClauses, "updated_at = now()")
 
