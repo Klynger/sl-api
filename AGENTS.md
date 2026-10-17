@@ -11,7 +11,10 @@ go build -o ./bin/api ./cmd/api
 # Build the migration CLI
 go build -o ./bin/migrate ./cmd/migrate
 
-# Run with Docker Compose (starts Postgres + runs migrations + starts API)
+# Build the local-seed CLI
+go build -o ./bin/seed ./cmd/seed
+
+# Run with Docker Compose (starts Postgres + runs migrations + starts API + seeds local data)
 docker compose up --build
 ```
 
@@ -22,10 +25,10 @@ docker compose up --build
 go test ./...
 
 # Run a single test by name
-go test ./api/resource/product/ -run TestRepository_Create
+go test ./api/repositories/product/ -run TestRepository_Create
 
 # Run tests in a specific package
-go test ./api/resource/product/
+go test ./api/services/list/
 
 # Verbose output
 go test -v ./...
@@ -34,9 +37,12 @@ go test -v ./...
 go test -race ./...
 ```
 
-There is currently one test file: `api/resource/product/repository_test.go`. Tests use
-the standard `testing` package with custom helpers from `util/test/` and DB mocks from
-`mock/db/` (go-sqlmock). Test files use external test packages (e.g., `package product_test`).
+Tests live across the repository and service packages (for example
+`api/repositories/product`, `api/repositories/group_member`, `api/services/list`,
+`api/services/group`), plus a user model test. They use the standard `testing`
+package with custom helpers from `util/test/` and DB mocks from `mock/db/`
+(go-sqlmock), in external test packages (e.g., `package product_test`). Handlers
+have no unit tests; they are exercised end-to-end against a real Postgres.
 
 ## Linting & Formatting
 
@@ -57,22 +63,29 @@ No golangci-lint configuration exists. Rely on `gofmt` and `go vet`.
 
 ```
 cmd/
-  api/main.go            # HTTP server entrypoint
-  migrate/main.go        # Migration CLI entrypoint
+  api/main.go              # HTTP server entrypoint
+  migrate/main.go          # Migration CLI entrypoint
+  seed/main.go             # Local-seed CLI (drives the real HTTP endpoints)
 config/
-  config.go              # Env-based configuration (joeshaw/envdecode)
+  config.go                # Env-based configuration (joeshaw/envdecode)
 api/
-  middleware/auth.go      # Session-based auth middleware
-  resource/
-    common/err/err.go     # Shared HTTP error response helpers
-    health/handler.go     # Health check endpoint (GET /livez)
-    product/              # Product domain: handler, model, repository, tests
-    user/                 # User domain: handler, model, repository
-mock/db/db.go            # GORM mock DB helper (go-sqlmock)
+  middleware/              # Session auth (RequireAuth), default headers, login rate limit
+  model/<domain>/          # GORM models, DTOs (output), Forms (input), conversions
+  repositories/<domain>/   # Data access, wrapping GORM
+  routes/
+    common/errors/         # Shared HTTP error response helpers (errorsCommon)
+    health/                # Health check endpoint (GET /livez)
+    router.go              # Mounts everything under /v1 (public + authenticated groups)
+    <domain>/              # HTTP handlers: product, user, group, group/invite, list
+  services/
+    group/                 # GroupService: groups, members, invites
+    list/                  # ListService: lists, items, quantity, status
+    util/                  # WithTransaction helper
+mock/db/db.go              # GORM mock DB helper (go-sqlmock)
 util/
-  test/test.go           # Custom test assertions (NoError, Equal)
-  validator/             # go-playground/validator setup + error formatting
-migrations/              # Goose SQL migration files
+  test/test.go             # Custom test assertions (NoError, Equal)
+  validator/               # go-playground/validator setup + error formatting
+migrations/                # Goose SQL migration files
 ```
 
 ## Code Style
@@ -89,38 +102,39 @@ import (
     "github.com/go-chi/chi/v5"
     "gorm.io/gorm"
 
-    e "sl-api/api/resource/common/err"
-    "sl-api/util/validator"
+    errorsCommon "sl-api/api/routes/common/errors"
+    validatorUtil "sl-api/util/validator"
 )
 ```
 
 Use short aliases when needed to avoid conflicts:
-- `e` for `sl-api/api/resource/common/err`
+- `errorsCommon` for `sl-api/api/routes/common/errors`
 - `validatorUtil` for `sl-api/util/validator`
 - `mockDB` for `sl-api/mock/db`
 - `testUtil` for `sl-api/util/test`
+- `<domain>Service` for `sl-api/api/services/<domain>` (e.g. `listService`, `groupService`), `<domain>Repository` for repositories, `<domain>Model` for models
 
 ### Naming Conventions
 
-- **Packages:** lowercase, short (`product`, `user`, `health`, `err`, `config`)
+- **Packages:** lowercase; handler packages use a `<domain>Handlers` name, services `<domain>Service`, repositories `<domain>Repository`, models `<domain>Model`
 - **Structs:** PascalCase (`Product`, `Repository`, `API`)
 - **Constructors:** `New()` or `NewRepository(db)` pattern
 - **Handler methods:** Named by action: `List`, `Read`, `Create`, `Update`, `Delete`, `Register`, `Login`, `Logout`
 - **Receiver names:** Single letter matching type (`r` for Repository, `a` for API, `p` for Product)
 - **Config fields:** Use `env:"FIELD_NAME,required"` struct tags
 
-### Architecture Pattern — Resource-Based
+### Architecture Pattern — Layered
 
-Each domain entity gets its own package under `api/resource/` with:
+A domain is split across four sibling trees rather than one package:
 
-| File | Purpose |
-|------|---------|
-| `handler.go` | HTTP handler — `API` struct with route handler methods |
-| `model.go` | GORM model, DTO (output), Form (input), conversion methods |
-| `repository.go` | Data access layer wrapping GORM |
-| `repository_test.go` | Tests for repository using go-sqlmock |
+| Location | Purpose |
+|----------|---------|
+| `api/model/<domain>/` | GORM model, DTO (output), Form (input), conversion methods |
+| `api/repositories/<domain>/` | Data access wrapping GORM, plus `_test.go` (go-sqlmock) |
+| `api/routes/<domain>/` | HTTP handlers — an `API` struct with route handler methods |
+| `api/services/<domain>/` | Business logic + authorization (only for richer domains) |
 
-The `API` struct holds a `*Repository` and `*validator.Validate`, constructed via `New(db, v)`.
+The handler `API` struct holds its dependencies (a repository and/or a service, plus `*validator.Validate`), constructed via `New(...)`. Simple domains (products, users) skip the service layer and call repositories directly; groups/invites (`GroupService`) and lists/items (`ListService`) have a service.
 
 ### Service Layer Structure
 
@@ -139,7 +153,7 @@ domain's service as a single field, wired through its `New(db)`.
 
 ### Model / DTO / Form Convention
 
-- **Model:** GORM struct with DB tags, timestamps, `gorm.DeletedAt` for soft deletes
+- **Model:** GORM struct with DB tags, timestamps, `gorm.DeletedAt` for soft deletes (the one exception is `list_items`, deliberately hard-deleted, so it has no `DeletedAt`)
 - **DTO:** Output struct with `json` tags (omit sensitive fields like passwords)
 - **Form:** Input struct with `json` + `validate` tags for request binding
 - **Conversions:** `model.ToDto()` and `form.ToModel()` methods
@@ -147,13 +161,13 @@ domain's service as a single field, wired through its `New(db)`.
 
 ### Error Handling
 
-- Use centralized helpers from `api/resource/common/err`:
-  - `e.ServerError(w, msg)` — 500 response
-  - `e.BadRequest(w, msg)` — 400 response
-  - `e.ValidationErrors(w, msg)` — 422 response
-- Pre-defined byte slices for common error messages (`RespDBDataAccessFailure`, `RespJSONEncodeFailure`, etc.)
-- Pattern in handlers: check error, write error response, `return` early
-- Fatal errors during startup use `log.Fatal()` / `log.Fatalf()`
+- Use centralized helpers from `api/routes/common/errors` (aliased `errorsCommon`):
+  - `errorsCommon.ServerError(w, item)` — 500, `BadRequest` — 400, `Unauthorized` — 401, `Forbidden` — 403, `NotFound` — 404, `Conflict` — 409, `ValidationErrors` — 422.
+  - Build items with `errorsCommon.NewError(code, detail)` / `NewErrorWithMeta(code, detail, meta)`; `code` constants live in that package. The wire shape is `{"errors": [{code, detail, meta}]}`.
+  - `errorsCommon.WriteDBError(w, err, fallback)` classifies Postgres constraint violations (duplicate → 409, FK violation → 422) and otherwise writes the fallback as 500.
+- Services return sentinel errors (`errors.New`, one per package `errors.go`); handlers map them to responses with a `switch { case errors.Is(err, ...) }`.
+- Pattern in handlers: check error, write error response, `return` early.
+- Fatal errors during startup use `log.Fatal()` / `log.Fatalf()`.
 
 ### Testing Conventions
 
@@ -168,4 +182,5 @@ domain's service as a single field, wired through its `New(db)`.
 `go-chi/chi/v5` (router), `gorm.io/gorm` + `gorm.io/driver/postgres` (ORM),
 `pressly/goose/v3` (migrations), `go-playground/validator/v10` (validation),
 `google/uuid`, `gorilla/sessions` (auth), `joeshaw/envdecode` (config),
-`DATA-DOG/go-sqlmock` (test mocking).
+`jackc/pgx/v5` (Postgres driver / error classification via `pgconn`),
+`golang.org/x/sync/errgroup` (concurrent seed), `DATA-DOG/go-sqlmock` (test mocking).
