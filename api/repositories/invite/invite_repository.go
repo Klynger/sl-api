@@ -155,15 +155,15 @@ func (r *InviteRepository) GetCreateInviteData(input *groupTypes.GetCreateInvite
 }
 
 // ListPendingForUser returns the live invites addressed to a user, each joined
-// with its group name and sender username so the recipient can recognize them.
+// with its group name, sender, and invited user so the recipient can recognize them.
 func (r *InviteRepository) ListPendingForUser(invitedUserID uuid.UUID) (inviteModel.PendingInvites, error) {
 	invites := make(inviteModel.PendingInvites, 0)
 
 	err := r.db.Table("invites").
-		Select("invites.id, invites.group_id, groups.name AS group_name, "+
-			"invites.sender_id, sender.username AS sender_username").
+		Select(pendingInviteColumns).
 		Joins("INNER JOIN groups ON groups.id = invites.group_id AND groups.deleted_at IS NULL").
 		Joins("INNER JOIN users AS sender ON sender.id = invites.sender_id AND sender.deleted_at IS NULL").
+		Joins("INNER JOIN users AS invited ON invited.id = invites.invited_user_id AND invited.deleted_at IS NULL").
 		Where("invites.invited_user_id = ? AND invites.deleted_at IS NULL", invitedUserID).
 		Scan(&invites).Error
 
@@ -175,15 +175,16 @@ func (r *InviteRepository) ListPendingForUser(invitedUserID uuid.UUID) (inviteMo
 }
 
 // ListPendingForGroup returns the live invites for a group, each joined with the
-// group name and sender username. Membership is checked by the caller, not here.
+// group name, sender, and invited user, so the group can see who each invite is
+// waiting on. Membership is checked by the caller, not here.
 func (r *InviteRepository) ListPendingForGroup(groupID uuid.UUID) (inviteModel.PendingInvites, error) {
 	invites := make(inviteModel.PendingInvites, 0)
 
 	err := r.db.Table("invites").
-		Select("invites.id, invites.group_id, groups.name AS group_name, "+
-			"invites.sender_id, sender.username AS sender_username").
+		Select(pendingInviteColumns).
 		Joins("INNER JOIN groups ON groups.id = invites.group_id AND groups.deleted_at IS NULL").
 		Joins("INNER JOIN users AS sender ON sender.id = invites.sender_id AND sender.deleted_at IS NULL").
+		Joins("INNER JOIN users AS invited ON invited.id = invites.invited_user_id AND invited.deleted_at IS NULL").
 		Where("invites.group_id = ? AND invites.deleted_at IS NULL", groupID).
 		Scan(&invites).Error
 
@@ -223,3 +224,9 @@ func (r *InviteRepository) Delete(id uuid.UUID) error {
 
 	return result.Error
 }
+
+// pendingInviteColumns is the select list shared by the pending-invite listing
+// queries, matching the fields of inviteModel.PendingInvite in order.
+const pendingInviteColumns = "invites.id, invites.group_id, groups.name AS group_name, " +
+	"invites.sender_id, sender.username AS sender_username, " +
+	"invites.invited_user_id, invited.username AS invited_username"

@@ -21,33 +21,40 @@ type Form struct {
 	InvitedUsername string `json:"invitedUsername" validate:"required,max=50"`
 }
 
-// PendingInvite is one live invite joined with the group it belongs to and the
-// user who sent it, so a recipient has enough to recognize and act on it. It is
-// the scan target for the listing queries.
+// PendingInvite is one live invite joined with the group it belongs to, the
+// user who sent it, and the user it is addressed to, so a recipient can
+// recognize and act on it and a group can see who it is waiting on. It is the
+// scan target for the listing queries.
 type PendingInvite struct {
-	ID             uuid.UUID
-	GroupID        uuid.UUID
-	GroupName      string
-	SenderID       uuid.UUID
-	SenderUsername string
+	ID              uuid.UUID
+	GroupID         uuid.UUID
+	GroupName       string
+	SenderID        uuid.UUID
+	SenderUsername  string
+	InvitedUserID   uuid.UUID
+	InvitedUsername string
 }
 
 func (p *PendingInvite) ToDto() *PendingInviteDTO {
 	return &PendingInviteDTO{
-		ID:             p.ID.String(),
-		GroupID:        p.GroupID.String(),
-		GroupName:      p.GroupName,
-		SenderID:       p.SenderID.String(),
-		SenderUsername: p.SenderUsername,
+		ID:              p.ID.String(),
+		GroupID:         p.GroupID.String(),
+		GroupName:       p.GroupName,
+		SenderID:        p.SenderID.String(),
+		SenderUsername:  p.SenderUsername,
+		InvitedUserID:   p.InvitedUserID.String(),
+		InvitedUsername: p.InvitedUsername,
 	}
 }
 
 type PendingInviteDTO struct {
-	ID             string `json:"id"`
-	GroupID        string `json:"groupId"`
-	GroupName      string `json:"groupName"`
-	SenderID       string `json:"senderId"`
-	SenderUsername string `json:"senderUsername"`
+	ID              string `json:"id"`
+	GroupID         string `json:"groupId"`
+	GroupName       string `json:"groupName"`
+	SenderID        string `json:"senderId"`
+	SenderUsername  string `json:"senderUsername"`
+	InvitedUserID   string `json:"invitedUserId"`
+	InvitedUsername string `json:"invitedUsername"`
 }
 
 type PendingInvites []*PendingInvite

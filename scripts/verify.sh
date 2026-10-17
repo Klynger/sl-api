@@ -36,6 +36,28 @@ expect_status() {
   echo "ok: $description ($actual)"
 }
 
+# Assert that a curl call returns the expected HTTP status and a body that
+# contains the given fixed string.
+# usage: expect_body <expected> <substring> <description> <curl args...>
+expect_body() {
+  local expected=$1 substring=$2 description=$3
+  shift 3
+  local body actual
+  body=$(mktemp)
+  actual=$(curl -s -o "$body" -w '%{http_code}' "$@")
+  if [ "$actual" != "$expected" ]; then
+    rm -f "$body"
+    fail "$description: expected HTTP $expected, got $actual"
+  fi
+  if ! grep -qF -- "$substring" "$body"; then
+    echo "body: $(cat "$body")" >&2
+    rm -f "$body"
+    fail "$description: response body does not contain $substring"
+  fi
+  rm -f "$body"
+  echo "ok: $description ($actual)"
+}
+
 step "gofmt"
 unformatted=$(gofmt -l .)
 if [ -n "$unformatted" ]; then
@@ -84,7 +106,7 @@ curl -sf "$base/livez" >/dev/null || fail "API did not become healthy"
 cookie_jar=$(mktemp)
 user='{"name":"Ana","lastName":"Silva","username":"ana","password":"secret123"}'
 
-expect_status 201 "register user" \
+expect_body 201 '"username":"ana"' "register user returns the created user" \
   -X POST "$base/v1/users" -d "$user"
 expect_status 409 "duplicate username rejected" \
   -X POST "$base/v1/users" -d "$user"
@@ -96,7 +118,9 @@ expect_status 200 "login" \
   -c "$cookie_jar" -X POST "$base/v1/users/login" -d '{"username":"ana","password":"secret123"}'
 expect_status 401 "auth required without session" \
   "$base/v1/products"
-expect_status 201 "create product" \
+expect_body 200 '"username":"ana"' "read the authenticated user" \
+  -b "$cookie_jar" "$base/v1/users/me"
+expect_body 201 '"id":"' "create product returns the created product" \
   -b "$cookie_jar" -X POST "$base/v1/products" -d '{"name":"Milk","description":"2L"}'
 expect_status 200 "list products" \
   -b "$cookie_jar" "$base/v1/products"

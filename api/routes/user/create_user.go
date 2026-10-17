@@ -19,7 +19,7 @@ import (
 //	@accept			json
 //	@product		json
 //	@param			body	body	userModel.Form	true	"User form"
-//	@success		201
+//	@success		201	{object}	userModel.DTO
 //	@failure		400	{object}	errorsCommon.ErrorResponse
 //	@failure		409	{object}	errorsCommon.ErrorResponse
 //	@failure		422	{object}	errorsCommon.ErrorResponse
@@ -50,7 +50,7 @@ func (a *API) Register(w http.ResponseWriter, r *http.Request) {
 	}
 	newUser.ID = uuid.New()
 
-	_, err = a.repository.Create(newUser)
+	created, err := a.repository.Create(newUser)
 	if err != nil {
 		if item, ok := errorsCommon.ClassifyDBError(err); ok && item.Code == errorsCommon.CodeDuplicateEntry {
 			errorsCommon.Conflict(w, errorsCommon.NewError(errorsCommon.CodeUsernameTaken, "username is already taken"))
@@ -62,4 +62,9 @@ func (a *API) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusCreated)
+
+	if err := json.NewEncoder(w).Encode(created.ToDto()); err != nil {
+		errorsCommon.ServerError(w, errorsCommon.NewError(errorsCommon.CodeJSONEncodeFailure, "could not encode the response"))
+		return
+	}
 }

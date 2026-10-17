@@ -37,17 +37,6 @@ func postJSON(ctx context.Context, client *http.Client, base, path string, body 
 	return client.Do(req)
 }
 
-func getJSON(ctx context.Context, client *http.Client, base, path string) (*http.Response, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+path, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Set("Accept", "application/json")
-
-	return client.Do(req)
-}
-
 // registerUser creates a user. created is false (with no error) when the user
 // already exists (HTTP 409), which the caller uses as an idempotency signal.
 func registerUser(ctx context.Context, client *http.Client, base, name, lastName, username, password string) (created bool, err error) {
@@ -91,12 +80,13 @@ func login(ctx context.Context, client *http.Client, base, username, password st
 	return nil
 }
 
-// createProducts creates each named product, then returns the catalog's ids.
-// Create returns no body, so the ids come from a follow-up GET /v1/products.
+// createProducts creates each named product and returns their ids, in the
+// order of names, from each create response.
 func createProducts(ctx context.Context, client *http.Client, base string, names []string) ([]string, error) {
 	g, gctx := errgroup.WithContext(ctx)
+	ids := make([]string, len(names))
 
-	for _, name := range names {
+	for i, name := range names {
 		g.Go(func() error {
 			resp, err := postJSON(gctx, client, base, "/v1/products", map[string]any{"name": name})
 			if err != nil {
@@ -108,34 +98,21 @@ func createProducts(ctx context.Context, client *http.Client, base string, names
 				return fmt.Errorf("create product %q: unexpected status %d", name, resp.StatusCode)
 			}
 
+			var out struct {
+				ID string `json:"id"`
+			}
+			if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+				return err
+			}
+
+			ids[i] = out.ID
+
 			return nil
 		})
 	}
 
 	if err := g.Wait(); err != nil {
 		return nil, err
-	}
-
-	resp, err := getJSON(ctx, client, base, "/v1/products")
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("list products: unexpected status %d", resp.StatusCode)
-	}
-
-	var products []struct {
-		ID string `json:"id"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&products); err != nil {
-		return nil, err
-	}
-
-	ids := make([]string, 0, len(products))
-	for _, p := range products {
-		ids = append(ids, p.ID)
 	}
 
 	return ids, nil
