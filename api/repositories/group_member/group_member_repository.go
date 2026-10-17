@@ -30,7 +30,7 @@ func (r *GroupMemberRepository) Read(id uuid.UUID) (*groupMemberModel.GroupMembe
 
 	err := r.db.Table("group_members").
 		Select("group_members.id, group_members.user_id, group_members.group_id, group_members.roles, "+
-			"users.user_name, users.last_name, "+
+			"users.user_name, users.last_name AS user_last_name, "+
 			"groups.name as group_name").
 		Joins("INNER JOIN users ON users.id = group_members.user_id AND users.deleted_at IS NULL").
 		Joins("INNER JOIN groups ON groups.id = group_members.group_id AND groups.deleted_at IS NULL").
@@ -49,7 +49,7 @@ func (r *GroupMemberRepository) List() ([]*groupMemberModel.GroupMemberDetails, 
 
 	err := r.db.Table("group_members").
 		Select("group_members.id, group_members.user_id, group_members.group_id, group_members.roles, " +
-			"users.user_name, users.last_name, " +
+			"users.user_name, users.last_name AS user_last_name, " +
 			"groups.name as group_name").
 		Joins("INNER JOIN users ON users.id = group_members.user_id AND users.deleted_at IS NULL").
 		Joins("INNER JOIN groups ON groups.id = group_members.group_id AND groups.deleted_at IS NULL").
@@ -68,7 +68,7 @@ func (r *GroupMemberRepository) ListByUser(userID uuid.UUID) ([]*groupMemberMode
 
 	err := r.db.Table("group_members").
 		Select("group_members.id, group_members.user_id, group_members.group_id, group_members.roles, "+
-			"users.user_name, users.last_name, "+
+			"users.user_name, users.last_name AS user_last_name, "+
 			"groups.name as group_name").
 		Joins("INNER JOIN users ON users.id = group_members.user_id AND users.deleted_at IS NULL").
 		Joins("INNER JOIN groups ON groups.id = group_members.group_id AND groups.deleted_at IS NULL").
@@ -87,7 +87,7 @@ func (r *GroupMemberRepository) ListByGroup(groupID uuid.UUID) ([]*groupMemberMo
 
 	err := r.db.Table("group_members").
 		Select("group_members.id, group_members.user_id, group_members.group_id, group_members.roles, "+
-			"users.user_name, users.last_name, "+
+			"users.user_name, users.last_name AS user_last_name, "+
 			"groups.name as group_name").
 		Joins("INNER JOIN users ON users.id = group_members.user_id AND users.deleted_at IS NULL").
 		Joins("INNER JOIN groups ON groups.id = group_members.group_id AND groups.deleted_at IS NULL").
@@ -106,7 +106,7 @@ func (r *GroupMemberRepository) FindByUserAndGroup(userID, groupID uuid.UUID) (*
 
 	err := r.db.Table("group_members").
 		Select("group_members.id, group_members.user_id, group_members.group_id, group_members.roles, "+
-			"users.user_name, users.last_name, "+
+			"users.user_name, users.last_name AS user_last_name, "+
 			"groups.name as group_name").
 		Joins("INNER JOIN users ON users.id = group_members.user_id AND users.deleted_at IS NULL").
 		Joins("INNER JOIN groups ON groups.id = group_members.group_id AND groups.deleted_at IS NULL").
