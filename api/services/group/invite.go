@@ -21,7 +21,7 @@ type CreateInviteInput struct {
 }
 
 type CreateInviteOutput struct {
-	InviteID uuid.UUID
+	InviteID uuid.UUID `json:"inviteId"`
 }
 
 // CreateInvite invites a user (by username) to a group. The caller must be an
@@ -79,9 +79,18 @@ func (s *GroupService) CreateInvite(ctx context.Context, input CreateInviteInput
 		return nil, ErrInsufficientPermissions
 	}
 
-	// TODO: Change this to guarantee idempotency. Return the invite instead of an error if already invited
+	// Idempotent: a repeat invite for someone already invited returns the existing
+	// pending invite rather than a conflict, so a retrying client converges on the
+	// same invite instead of erroring.
 	if inviteData.IsAlreadyInvited {
-		return nil, ErrAlreadyInvited
+		existing, err := inviteRepo.FindByGroupAndInvitedUser(input.GroupID, invitedUserID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load the existing invite: %w", err)
+		}
+
+		return &CreateInviteOutput{
+			InviteID: existing.ID,
+		}, nil
 	}
 
 	if inviteData.IsAlreadyMember {

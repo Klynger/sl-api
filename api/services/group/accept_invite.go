@@ -37,7 +37,7 @@ func (s *GroupService) AcceptInvite(ctx context.Context, input AcceptInviteInput
 		inviteRepo := inviteRepository.New(tx)
 		groupMemberRepo := groupMemberRepository.New(tx)
 
-		inviteData, err := inviteRepo.GetAcceptInviteData(input.GroupID, authedUserID)
+		inviteData, err := inviteRepo.FindByGroupAndInvitedUser(input.GroupID, authedUserID)
 
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
