@@ -42,6 +42,7 @@ func New(db *gorm.DB, validator *validator.Validate, authSessionStore *sessions.
 			authedRouter.Put("/products/{id}", productAPI.Update)
 			authedRouter.Delete("/products/{id}", productAPI.Delete)
 
+			authedRouter.Get("/users/me", userAPI.Me)
 			authedRouter.Get("/users/{id}", userAPI.Get)
 			authedRouter.Post("/users/logout", userAPI.Logout)
 

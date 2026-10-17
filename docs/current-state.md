@@ -8,10 +8,10 @@ rather than in a monorepo with this API.
 ## Implemented features
 
 - **Users and auth**: registration, login, and logout with cookie-based sessions (gorilla/sessions). Login is constant-time against username enumeration (a decoy bcrypt comparison runs when the username does not exist) and rate-limited. Sessions expire after a configurable max age and are refreshed on each authenticated request.
-- **Users**: `GET /users/{id}` returns a shape that depends on the relationship: yourself or a group co-member get the full record, anyone else gets a trimmed public profile (`id`, `name`, `username`), so the directory cannot be harvested.
-- **Products**: full CRUD (list, get, create, update, delete), all routed. Products are a shared global catalog with no per-user ownership, so any authenticated user may read or mutate them.
+- **Users**: registration returns the created user (`id`, `name`, `lastName`, `username`; never the password). `GET /users/me` returns the caller's own full record, so a client can learn its own id without depending on group membership. `GET /users/{id}` returns a shape that depends on the relationship: yourself or a group co-member get the full record, anyone else gets a trimmed public profile (`id`, `name`, `username`), so the directory cannot be harvested.
+- **Products**: full CRUD (list, get, create, update, delete), all routed. Create returns the created product, including its id. Products are a shared global catalog with no per-user ownership, so any authenticated user may read or mutate them.
 - **Groups**: an authenticated user can create a group (becoming its owner), list the groups they belong to, and list a group's members (member-only).
-- **Invites**: a group owner can invite another user by username; creating an invite is idempotent (a repeat invite returns the existing one rather than conflicting). The invited user can accept, which creates the membership and deletes the invite in one transaction. Both a user's own pending invites and a group's pending invites (member-only) can be listed.
+- **Invites**: a group owner can invite another user by username; creating an invite is idempotent (a repeat invite returns the existing one rather than conflicting). The invited user can accept, which creates the membership and deletes the invite in one transaction. Both a user's own pending invites and a group's pending invites (member-only) can be listed; each listed invite names its group, its sender, and the invited user.
 - **Lists**: a group member can create a shopping list in a group, read that group's lists, and change a list's status. A list belongs to exactly one group.
 - **Items**: a member can add a product from the shared catalog to a list, read a list's items (with product names), change an item's quantity (increment / decrement, with a floor of 1), update its mutable fields (quantity, unit, note), change its status, and remove it. One row per product per list; adding a product already on the list is rejected with a 409 conflict.
 
@@ -23,6 +23,7 @@ rather than in a monorepo with this API.
 | POST | `/v1/users` | No | Register |
 | POST | `/v1/users/login` | No | Login (rate-limited) |
 | POST | `/v1/users/logout` | Yes | Logout |
+| GET | `/v1/users/me` | Yes | Get the caller's own user |
 | GET | `/v1/users/{id}` | Yes | Get user (full for self / co-member, public profile otherwise) |
 | GET | `/v1/products` | Yes | List products |
 | GET | `/v1/products/{id}` | Yes | Get product |
@@ -30,7 +31,7 @@ rather than in a monorepo with this API.
 | PUT | `/v1/products/{id}` | Yes | Update product |
 | DELETE | `/v1/products/{id}` | Yes | Delete product |
 | POST | `/v1/groups` | Yes | Create group |
-| GET | `/v1/groups` | Yes | List the caller's groups |
+| GET | `/v1/groups` | Yes | List the caller's groups, as their membership rows (see Response shapes) |
 | GET | `/v1/groups/{groupId}/members` | Yes | List a group's members (member-only) |
 | POST | `/v1/groups/{groupId}/invites` | Yes | Create invite (idempotent; owner-only) |
 | GET | `/v1/groups/{groupId}/invites` | Yes | List a group's pending invites (member-only) |
@@ -46,6 +47,30 @@ rather than in a monorepo with this API.
 | POST | `/v1/lists/{listId}/items/{itemId}/increment` | Yes | Increase item quantity |
 | POST | `/v1/lists/{listId}/items/{itemId}/decrement` | Yes | Decrease item quantity (floor 1) |
 | PATCH | `/v1/lists/{listId}/items/{itemId}/status` | Yes | Change an item's status |
+
+## Response shapes
+
+Most responses are a resource's DTO (or an array of them) with camelCase keys. A few shapes are not obvious from the path:
+
+- **`GET /v1/groups`** returns the caller's **membership rows**, not plain groups: one object per group the caller belongs to, joined with the group and the caller's own user record.
+
+  ```json
+  [
+    {
+      "id": "<group_members row id>",
+      "userId": "<the caller's user id>",
+      "userName": "Ana",
+      "userLastName": "Silva",
+      "groupId": "<group id>",
+      "groupName": "Home",
+      "roles": ["owner"]
+    }
+  ]
+  ```
+
+  `id` is the membership id, not the group id; use `groupId` to address the group. `userId`, `userName`, and `userLastName` are always the caller (the same in every row), and `roles` are the caller's roles in that group (`owner`, `member`), which is how a client tells whether it may invite. `GET /v1/groups/{groupId}/members` returns the same row shape, one per member of the group.
+- **`GET /v1/invites`** and **`GET /v1/groups/{groupId}/invites`** return pending invites as `{id, groupId, groupName, senderId, senderUsername, invitedUserId, invitedUsername}`. For the caller's own listing the invited user is always the caller; for a group's listing it says who each invite is waiting on.
+- **Create endpoints** all return the new resource's id. `POST /v1/users` and `POST /v1/products` return the full created DTO (with `id`); the service-backed creates return a small output object keyed by resource: `{groupId, userId}` for a group, `{listId}` for a list, `{itemId}` for an item, and `{inviteId}` for an invite.
 
 ## Error handling
 

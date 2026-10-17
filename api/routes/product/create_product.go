@@ -19,7 +19,7 @@ import (
 //	@accept			json
 //	@product		json
 //	@param			body	body	productModel.Form	true	"Product form"
-//	@success		201
+//	@success		201	{object}	productModel.DTO
 //	@failure		400	{object}	errorsCommon.ErrorResponse
 //	@failure		422	{object}	errorsCommon.ErrorResponse
 //	@failure		500	{object}	errorsCommon.ErrorResponse
@@ -45,11 +45,16 @@ func (a *API) Create(w http.ResponseWriter, r *http.Request) {
 	newProduct := form.ToModel()
 	newProduct.ID = uuid.New()
 
-	_, err := a.repository.Create(newProduct)
+	created, err := a.repository.Create(newProduct)
 	if err != nil {
 		errorsCommon.WriteDBError(w, err, errorsCommon.NewError(errorsCommon.CodeDBInsertFailure, "could not save the product"))
 		return
 	}
 
 	w.WriteHeader(http.StatusCreated)
+
+	if err := json.NewEncoder(w).Encode(created.ToDto()); err != nil {
+		errorsCommon.ServerError(w, errorsCommon.NewError(errorsCommon.CodeJSONEncodeFailure, "could not encode the response"))
+		return
+	}
 }
