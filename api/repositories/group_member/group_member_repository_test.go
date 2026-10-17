@@ -41,3 +41,34 @@ func TestRepository_ExistsByUserAndGroup(t *testing.T) {
 
 	testUtil.NoError(t, mock.ExpectationsWereMet())
 }
+
+func TestRepository_SharesGroup(t *testing.T) {
+	t.Parallel()
+
+	db, mock, err := mockDB.NewMockDB()
+	testUtil.NoError(t, err)
+
+	repo := groupMemberRepository.New(db)
+	userA := uuid.New()
+	userB := uuid.New()
+
+	// A common group makes the EXISTS subquery true.
+	mock.ExpectQuery("EXISTS").
+		WithArgs(userA, userB).
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+
+	ok, err := repo.SharesGroup(userA, userB)
+	testUtil.NoError(t, err)
+	testUtil.Equal(t, ok, true)
+
+	// No common group means the pair shares nothing.
+	mock.ExpectQuery("EXISTS").
+		WithArgs(userA, userB).
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false))
+
+	ok, err = repo.SharesGroup(userA, userB)
+	testUtil.NoError(t, err)
+	testUtil.Equal(t, ok, false)
+
+	testUtil.NoError(t, mock.ExpectationsWereMet())
+}

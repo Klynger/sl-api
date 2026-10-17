@@ -134,6 +134,25 @@ func (r *GroupMemberRepository) ExistsByUserAndGroup(userID, groupID uuid.UUID) 
 	return count > 0, nil
 }
 
+// SharesGroup reports whether two users are both members of at least one common
+// group. It decides how much of a user's profile another user may see.
+func (r *GroupMemberRepository) SharesGroup(userA, userB uuid.UUID) (bool, error) {
+	var exists bool
+
+	err := r.db.Raw(`
+		SELECT EXISTS (
+			SELECT 1
+			FROM group_members a
+			JOIN group_members b ON b.group_id = a.group_id AND b.deleted_at IS NULL
+			WHERE a.user_id = ? AND b.user_id = ? AND a.deleted_at IS NULL
+		)`, userA, userB).Scan(&exists).Error
+	if err != nil {
+		return false, err
+	}
+
+	return exists, nil
+}
+
 func (r *GroupMemberRepository) Delete(id uuid.UUID) (int64, error) {
 	result := r.db.Where("id = ?", id).Delete(&groupMemberModel.GroupMember{})
 

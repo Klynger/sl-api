@@ -65,6 +65,20 @@ func (s *GroupService) CreateInvite(ctx context.Context, input CreateInviteInput
 		return nil, ErrGroupNotFound
 	}
 
+	authedUserMember := inviteData.AuthedUserMember
+
+	// Gate on membership before revealing any group state. A non-member is told
+	// the group does not exist, so they cannot use this endpoint to probe whether
+	// a group exists or whether someone is already invited to / a member of it.
+	if authedUserMember == nil {
+		return nil, ErrGroupNotFound
+	}
+
+	// Only owners can invite.
+	if !authedUserMember.IsOwner() {
+		return nil, ErrInsufficientPermissions
+	}
+
 	// TODO: Change this to guarantee idempotency. Return the invite instead of an error if already invited
 	if inviteData.IsAlreadyInvited {
 		return nil, ErrAlreadyInvited
@@ -72,17 +86,6 @@ func (s *GroupService) CreateInvite(ctx context.Context, input CreateInviteInput
 
 	if inviteData.IsAlreadyMember {
 		return nil, ErrAlreadyMember
-	}
-
-	authedUserMember := inviteData.AuthedUserMember
-
-	if authedUserMember == nil {
-		return nil, ErrNotAMember
-	}
-
-	// Only owners can invite
-	if !authedUserMember.IsOwner() {
-		return nil, ErrInsufficientPermissions
 	}
 
 	invite, err := inviteRepo.Create(&inviteModel.Invite{
