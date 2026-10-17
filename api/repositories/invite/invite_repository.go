@@ -194,7 +194,10 @@ func (r *InviteRepository) ListPendingForGroup(groupID uuid.UUID) (inviteModel.P
 	return invites, nil
 }
 
-func (r *InviteRepository) GetAcceptInviteData(groupID, invitedUserID uuid.UUID) (*inviteModel.Invite, error) {
+// FindByGroupAndInvitedUser returns the invite for a (group, invited user) pair,
+// used both to accept an invite and to return the existing one on a repeat
+// invite. Returns gorm.ErrRecordNotFound when the pair has no invite.
+func (r *InviteRepository) FindByGroupAndInvitedUser(groupID, invitedUserID uuid.UUID) (*inviteModel.Invite, error) {
 	invite := &inviteModel.Invite{}
 
 	err := r.db.Where("invited_user_id = ? AND group_ID = ?", invitedUserID.String(), groupID.String()).First(&invite).Error

@@ -75,8 +75,6 @@ func (api *API) Create(w http.ResponseWriter, r *http.Request) {
 			errorsCommon.NotFound(w, errorsCommon.NewError(errorsCommon.CodeUserNotFound, "user not found"))
 		case errors.Is(err, groupService.ErrGroupNotFound):
 			errorsCommon.NotFound(w, errorsCommon.NewError(errorsCommon.CodeGroupNotFound, "group not found"))
-		case errors.Is(err, groupService.ErrAlreadyInvited):
-			errorsCommon.Conflict(w, errorsCommon.NewError(errorsCommon.CodeAlreadyInvited, "user already invited"))
 		case errors.Is(err, groupService.ErrAlreadyMember):
 			errorsCommon.Conflict(w, errorsCommon.NewError(errorsCommon.CodeAlreadyMember, "user is already a member"))
 		case errors.Is(err, groupService.ErrInsufficientPermissions):
