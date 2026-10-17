@@ -79,8 +79,6 @@ func (api *API) Create(w http.ResponseWriter, r *http.Request) {
 			errorsCommon.Conflict(w, errorsCommon.NewError(errorsCommon.CodeAlreadyInvited, "user already invited"))
 		case errors.Is(err, groupService.ErrAlreadyMember):
 			errorsCommon.Conflict(w, errorsCommon.NewError(errorsCommon.CodeAlreadyMember, "user is already a member"))
-		case errors.Is(err, groupService.ErrNotAMember):
-			errorsCommon.Forbidden(w, errorsCommon.NewError(errorsCommon.CodeNotAMember, "you are not a member of this group"))
 		case errors.Is(err, groupService.ErrInsufficientPermissions):
 			errorsCommon.Forbidden(w, errorsCommon.NewError(errorsCommon.CodeInsufficientPermissions, "only group owners can invite"))
 		default:

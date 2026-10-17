@@ -78,6 +78,23 @@ func (u *User) ToDto() *DTO {
 	}
 }
 
+// PublicDTO is the trimmed view of a user shown to people who do not share a
+// group with them: enough to recognize and confirm someone (e.g. before
+// inviting them), without exposing the full record.
+type PublicDTO struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Username string `json:"username"`
+}
+
+func (u *User) ToPublicDto() *PublicDTO {
+	return &PublicDTO{
+		ID:       u.ID.String(),
+		Name:     u.Name,
+		Username: u.Username,
+	}
+}
+
 // ToModel builds a User from the registration form, storing the password as a
 // bcrypt hash rather than in plaintext. It returns an error if hashing fails.
 func (f *Form) ToModel() (*User, error) {
