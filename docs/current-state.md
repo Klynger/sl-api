@@ -1,7 +1,9 @@
 # Current state
 
 A snapshot of what the API does today (October 2026). The API MVP is
-feature-complete.
+feature-complete. The frontend lives in its own repository,
+[Klynger/shopping-list-app](https://github.com/Klynger/shopping-list-app),
+rather than in a monorepo with this API.
 
 ## Implemented features
 
@@ -174,5 +176,4 @@ sqlmock tests (18 test files) cover the repository layer (`list`, `list_item`, `
 
 ## Planned next
 
-- Convert the repo into a monorepo to house an upcoming frontend (KLY-20).
 - Deploy to a local k3s cluster as an infrastructure-learning exercise (KLY-21).
