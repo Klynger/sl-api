@@ -5,7 +5,7 @@ A REST API for a shopping list application, written in Go with chi, GORM, and Po
 ## Quick start
 
 ```bash
-# Run everything (Postgres + migrations + API)
+# Run everything (Postgres + migrations + API), served at http://localhost:8090
 docker compose up --build
 
 # Or build and test locally

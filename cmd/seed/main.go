@@ -18,7 +18,8 @@ func baseURL() string {
 		return u
 	}
 
-	return "http://localhost:8080"
+	// The API as docker compose exposes it on the host.
+	return "http://localhost:8090"
 }
 
 // postJSON marshals body to JSON and POSTs it. The caller checks the status.
