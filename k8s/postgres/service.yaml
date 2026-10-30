@@ -1,0 +1,14 @@
+# Headless Service (no cluster IP): DNS resolves straight to the Pod, which is
+# what a StatefulSet expects. Inside the namespace the database is `postgres`.
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: sl-api
+spec:
+  clusterIP: None
+  selector:
+    app: postgres
+  ports:
+    - name: postgres
+      port: 5432

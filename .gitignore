@@ -2,3 +2,6 @@
 bin/
 .vibe-wise/
 /seed
+
+# Local secrets for the Kubernetes manifests, never committed
+k8s/*.env
