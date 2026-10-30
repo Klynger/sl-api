@@ -7,3 +7,14 @@ metadata:
   namespace: sl-api
 data:
   DB_NAME: shoppinglist_db
+  DB_HOST: postgres
+  DB_PORT: "5432"
+  DB_DEBUG: "true"
+  SERVER_PORT: "8080"
+  SERVER_TIMEOUT_READ: 3s
+  SERVER_TIMEOUT_WRITE: 5s
+  SERVER_TIMEOUT_IDLE: 5s
+  # The local cluster serves plain HTTP. Debug mode keeps the session cookie
+  # non-Secure so browsers still send it (cmd/api/main.go).
+  SERVER_DEBUG: "true"
+  AUTH_SESSION_MAX_AGE_SECONDS: "3600"

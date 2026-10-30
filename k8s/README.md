@@ -44,3 +44,27 @@ Open a SQL shell:
 ```bash
 kubectl -n sl-api exec -it postgres-0 -- psql -U shoppinglist_user -d shoppinglist_db
 ```
+
+## API and migrations
+
+The API runs as the `sl-api` Deployment, reachable inside the cluster as the `sl-api` Service on port 80. Migrations run as a Job named `migrate-<tag>`, separate from the API, which does not wait for them: every migration must keep working with the code already running (expand/contract).
+
+Both use the image `registry.localhost:5000/sl-api:<tag>`, where the tag is the commit the image was built from. Build that exact commit, not the working tree, so the tag always matches the code inside:
+
+```bash
+TAG=$(git rev-parse --short HEAD)
+git archive --format=tar "$TAG" | docker build -t "localhost:5000/sl-api:$TAG" -
+docker push "localhost:5000/sl-api:$TAG"
+```
+
+### Deploying a new version
+
+1. Build and push the new commit as above.
+2. Set the new tag in `k8s/api/deployment.yaml` (the image) and in `k8s/migrate/job.yaml` (the image and the Job name).
+3. `kubectl diff --server-side -R -f k8s/`, then `kubectl apply --server-side -R -f k8s/`.
+
+The new Job runs `migrate up`, which applies only migrations the database does not have yet. The Deployment replaces the API Pod once the new one passes its `/livez` check. Old Jobs stay until deleted (`kubectl -n sl-api delete job migrate-<old-tag>`).
+
+### Rolling back
+
+Set the previous tag back, through a revert of the bump commit, and apply. The API goes back to the old image. The schema stays as it is, which is safe because migrations only add what older code ignores. Undoing a migration is a separate, deliberate step, and needs the newer image, since only it contains that migration's `down`.

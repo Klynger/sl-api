@@ -1,0 +1,33 @@
+# Runs "migrate up" once per image version. A Job cannot be changed after it
+# is created, so the name carries the same tag as the image: bumping the tag
+# creates a new Job. The API does not wait for it: every migration must keep
+# working with the code already running (expand/contract).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrate-4e66359
+  namespace: sl-api
+spec:
+  # A few retries cover Postgres not being ready yet, then the Job fails.
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: registry.localhost:5000/sl-api:4e66359
+          command: ["/sl-api/bin/migrate", "up"]
+          envFrom:
+            - configMapRef:
+                name: sl-api
+          env:
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: production--sl-api--db-user
+                  key: value
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: production--sl-api--db-password
+                  key: value

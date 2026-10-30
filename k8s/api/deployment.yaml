@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sl-api
+  namespace: sl-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sl-api
+  template:
+    metadata:
+      labels:
+        app: sl-api
+    spec:
+      containers:
+        - name: api
+          # The tag is the sl-api commit the image was built from.
+          image: registry.localhost:5000/sl-api:4e66359
+          command: ["/sl-api/bin/api"]
+          ports:
+            - name: http
+              containerPort: 8080
+          # Plain settings from the ConfigMap, secrets one by one.
+          envFrom:
+            - configMapRef:
+                name: sl-api
+          env:
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: production--sl-api--db-user
+                  key: value
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: production--sl-api--db-password
+                  key: value
+            - name: AUTH_SESSION_STORE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: production--sl-api--auth-session-store-secret
+                  key: value
+          # /livez never touches the database, so a Postgres outage marks
+          # nothing unhealthy and causes no restart loop.
+          readinessProbe:
+            httpGet:
+              path: /livez
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests:
+              memory: 64Mi
+            limits:
+              memory: 256Mi
