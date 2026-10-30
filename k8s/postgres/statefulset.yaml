@@ -21,11 +21,24 @@ spec:
           ports:
             - name: postgres
               containerPort: 5432
-          # POSTGRES_DB, POSTGRES_USER and POSTGRES_PASSWORD, from the local
-          # postgres.env file (see the README).
-          envFrom:
-            - secretRef:
-                name: postgres
+          # Postgres reads these only when it first creates its data folder.
+          # The API connects with the same user and password.
+          env:
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: sl-api
+                  key: DB_NAME
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: production--sl-api--db-user
+                  key: value
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: production--sl-api--db-password
+                  key: value
           readinessProbe:
             exec:
               command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]

@@ -1,0 +1,9 @@
+# Plain, non-secret settings shared by Postgres, the API and the migrate Job.
+# Secret values live in one Secret each, named production--sl-api--<name>.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sl-api
+  namespace: sl-api
+data:
+  DB_NAME: shoppinglist_db
