@@ -1,0 +1,13 @@
+# Reachable inside the cluster as sl-api (port 80), forwarding to the API's 8080.
+apiVersion: v1
+kind: Service
+metadata:
+  name: sl-api
+  namespace: sl-api
+spec:
+  selector:
+    app: sl-api
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
