@@ -68,3 +68,32 @@ The new Job runs `migrate up`, which applies only migrations the database does n
 ### Rolling back
 
 Set the previous tag back, through a revert of the bump commit, and apply. The API goes back to the old image. The schema stays as it is, which is safe because migrations only add what older code ignores. Undoing a migration is a separate, deliberate step, and needs the newer image, since only it contains that migration's `down`.
+
+## Using it day to day
+
+Starting and stopping the cluster is covered in [personal-infra](https://github.com/Klynger/personal-infra#running-it-day-to-day). With the cluster running:
+
+```bash
+kubectl -n sl-api get pods                     # postgres-0 and sl-api-... Running
+curl -i http://sl-api.localhost:8080/livez     # 200
+```
+
+To use the app, run the frontend against the cluster's API, from the [shopping-list-app](https://github.com/Klynger/shopping-list-app) checkout:
+
+```bash
+API_URL=http://sl-api.localhost:8080 pnpm dev   # then open http://localhost:5173
+```
+
+The database starts empty: there is no seed in the cluster yet, so register a user through the frontend.
+
+Don't run this repo's `docker compose up` while the cluster is running. Both want host port 8080, so stop the cluster first.
+
+### What deletes the data
+
+| Action | Postgres data |
+|---|---|
+| Stopping, starting or rebooting the cluster | Kept |
+| `kubectl -n sl-api delete statefulset postgres` | Kept: the volume claim stays |
+| `kubectl -n sl-api delete pvc data-postgres-0` | **Deleted**: the storage is removed along with its claim |
+| `kubectl delete namespace sl-api` | **Deleted**, with everything else in the namespace |
+| `k3d cluster delete personal` | **Deleted**, with the whole cluster |
