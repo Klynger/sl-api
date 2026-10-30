@@ -16,8 +16,10 @@ services:
       - SERVER_DEBUG=${SERVER_DEBUG}
       - AUTH_SESSION_STORE_SECRET=${AUTH_SESSION_STORE_SECRET}
       - AUTH_SESSION_MAX_AGE_SECONDS=${AUTH_SESSION_MAX_AGE_SECONDS}
+    # Host port 8090 so compose can run next to the local k3d cluster, which
+    # holds host port 8080. Inside the container the API still listens on 8080.
     ports:
-      - "8080:8080"
+      - "8090:8080"
     depends_on:
       db:
         condition: service_healthy
