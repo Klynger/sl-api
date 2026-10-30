@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: sl-api
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          # Pinned: a major-version jump can refuse to open existing data.
+          image: postgres:18.6-alpine
+          ports:
+            - name: postgres
+              containerPort: 5432
+          # POSTGRES_DB, POSTGRES_USER and POSTGRES_PASSWORD, from the local
+          # postgres.env file (see the README).
+          envFrom:
+            - secretRef:
+                name: postgres
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: 128Mi
+            limits:
+              memory: 256Mi
+          volumeMounts:
+            # Postgres 18+ images keep their data under /var/lib/postgresql.
+            - name: data
+              mountPath: /var/lib/postgresql
+  # One volume per Pod, kept when the Pod is deleted or rescheduled.
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 1Gi
