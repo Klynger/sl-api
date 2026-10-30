@@ -2,7 +2,7 @@
 
 What sl-api needs to run in a Kubernetes cluster. It lives here, next to the code, so everything about the app goes away with the app. The cluster itself (k3d config, image registry) lives in [personal-infra](https://github.com/Klynger/personal-infra), which only knows that sl-api exists.
 
-For now these are applied by hand against the local k3d cluster from personal-infra.
+For now these are applied by hand against the local k3d cluster from personal-infra, always with server-side apply (`--server-side`). The API server then tracks which fields kubectl owns and compares only those, so fields it fills in itself, like the defaults inside the Postgres volume claim template, no longer show up as changes on every apply. Server-side apply prints `serverside-applied` whether or not anything changed: `kubectl diff --server-side -R -f k8s/` shows what an apply would actually change.
 
 ## Namespace and Postgres
 
@@ -10,9 +10,9 @@ Everything goes in the `sl-api` namespace, including the app's own Postgres. The
 
 ```bash
 cp k8s/postgres.env.example k8s/postgres.env   # then edit the password
-kubectl apply -f k8s/namespace.yaml
+kubectl apply --server-side -f k8s/namespace.yaml
 kubectl -n sl-api create secret generic postgres --from-env-file=k8s/postgres.env
-kubectl apply -R -f k8s/
+kubectl apply --server-side -R -f k8s/
 kubectl -n sl-api rollout status statefulset/postgres
 ```
 
