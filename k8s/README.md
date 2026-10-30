@@ -86,7 +86,7 @@ API_URL=http://sl-api.localhost:8080 pnpm dev   # then open http://localhost:517
 
 The database starts empty: there is no seed in the cluster yet, so register a user through the frontend.
 
-Don't run this repo's `docker compose up` while the cluster is running. Both want host port 8080, so stop the cluster first.
+This repo's `docker compose up` can run at the same time: it serves the API on `localhost:8090`, while the cluster holds 8080. Point the frontend at either one with its `API_URL`.
 
 ### What deletes the data
 
