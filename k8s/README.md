@@ -47,7 +47,7 @@ kubectl -n sl-api exec -it postgres-0 -- psql -U shoppinglist_user -d shoppingli
 
 ## API and migrations
 
-The API runs as the `sl-api` Deployment, reachable inside the cluster as the `sl-api` Service on port 80. Migrations run as a Job named `migrate-<tag>`, separate from the API, which does not wait for them: every migration must keep working with the code already running (expand/contract).
+The API runs as the `sl-api` Deployment, reachable inside the cluster as the `sl-api` Service on port 80. From this machine it is reachable at `http://sl-api.localhost:8080`: port 8080 goes to Traefik (the k3d port mapping in personal-infra), and the `sl-api` Ingress routes that hostname to the Service. Any `*.localhost` name resolves to this machine, so each app in the cluster can have its own. Migrations run as a Job named `migrate-<tag>`, separate from the API, which does not wait for them: every migration must keep working with the code already running (expand/contract).
 
 Both use the image `registry.localhost:5000/sl-api:<tag>`, where the tag is the commit the image was built from. Build that exact commit, not the working tree, so the tag always matches the code inside:
 

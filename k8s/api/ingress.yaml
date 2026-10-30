@@ -1,0 +1,21 @@
+# Routes http://sl-api.localhost:8080 (the k3d port mapping in personal-infra)
+# to the sl-api Service. Each app gets its own hostname, so several apps can
+# share the cluster's single ingress port.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: sl-api
+  namespace: sl-api
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: sl-api.localhost
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: sl-api
+                port:
+                  name: http
